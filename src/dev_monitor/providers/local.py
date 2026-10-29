@@ -51,8 +51,8 @@ def inspect(source, host, credential):
     root = context["checkout_path"]
     names = base.git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes").split()
     names = [name for name in names if not name.endswith("/HEAD") and name != "origin"]
-    branches = ([name for name in names if "/" not in name or name in _local_heads(root)]
-                + [name for name in names if "/" in name and name not in _local_heads(root)])[:100]
+    heads = _local_heads(root)
+    branches = ([name for name in names if name in heads] + [name for name in names if name not in heads])[:100]
     default = context["current_branch"]
     if not default:
         try:

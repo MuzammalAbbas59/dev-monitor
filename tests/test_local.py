@@ -75,6 +75,17 @@ class LocalRepoTests(unittest.TestCase):
         self.assertFalse(local.branch_exists(str(repo), "nope", "", None))
         self.assertFalse(local.branch_exists(str(repo), "-x", "", None))
 
+    def test_inspect_git_calls_do_not_scale_with_branches(self):
+        from unittest import mock
+        from dev_monitor.providers import base
+        repo = make_repo(self.root / "many")
+        commit(repo, "init")
+        for index in range(30):
+            git(repo, "update-ref", f"refs/remotes/origin/b{index}", "HEAD")
+        with mock.patch.object(base, "git", wraps=base.git) as spy:
+            local.inspect(str(repo), "", None)
+        self.assertLessEqual(spy.call_count, 8)
+
     def test_inspect_rejects_non_folder(self):
         with self.assertRaises(ProviderError):
             local.inspect("octo-org/widgets", "", None)
