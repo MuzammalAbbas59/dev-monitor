@@ -32,6 +32,12 @@ def render_dashboard(snapshot):
     return template.replace(PLACEHOLDER, embed_json(snapshot))
 
 
+def spreadsheet_safe(value):
+    """Stop spreadsheets from evaluating text cells as formulas."""
+    value = "" if value is None else str(value)
+    return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
+
 def csv_report(snapshot):
     zone = ZoneInfo(snapshot["timezone"])
     output = io.StringIO(newline="")
@@ -39,9 +45,10 @@ def csv_report(snapshot):
     writer.writerow(["PR number", "Title", "Description", "URL", "Author", "Merged by",
                      "Merged at (UTC)", "Merged at (display timezone)", "Display timezone", "Provider"])
     for record in snapshot["records"]:
-        writer.writerow(["" if record["number"] is None else record["number"], record["title"],
-                         record["description"], record["url"] or "", record["author"] or UNKNOWN,
-                         record["merged_by"] or UNKNOWN, record["merged_at"],
+        writer.writerow(["" if record["number"] is None else record["number"], spreadsheet_safe(record["title"]),
+                         spreadsheet_safe(record["description"]), record["url"] or "",
+                         spreadsheet_safe(record["author"] or UNKNOWN), spreadsheet_safe(record["merged_by"] or UNKNOWN),
+                         record["merged_at"],
                          merge_time(record, zone).isoformat(), snapshot["timezone"], record["provider"]])
     return output.getvalue()
 

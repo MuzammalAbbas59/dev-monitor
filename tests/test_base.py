@@ -68,7 +68,7 @@ class OriginRemoteTests(unittest.TestCase):
 
 class HttpTests(unittest.TestCase):
     def check(self, error, status, prefix):
-        with mock.patch("urllib.request.urlopen", side_effect=error):
+        with mock.patch.object(base._OPENER, "open", side_effect=error):
             with self.assertRaises(ProviderError) as context:
                 base.http_json("https://api.example.com/x", headers={"Authorization": "Bearer sekret"}, provider="gitlab")
         self.assertEqual(context.exception.status, status)
@@ -88,7 +88,7 @@ class HttpTests(unittest.TestCase):
         response.__enter__.return_value = response
         response.read.return_value = b'{"ok": true}'
         response.headers.items.return_value = [("X-Next-Page", "2")]
-        with mock.patch("urllib.request.urlopen", return_value=response) as opener:
+        with mock.patch.object(base._OPENER, "open", return_value=response) as opener:
             body, headers = base.http_json("https://api.example.com/x", provider="github")
         self.assertEqual(body, {"ok": True})
         self.assertEqual(headers, {"x-next-page": "2"})
@@ -99,7 +99,7 @@ class HttpTests(unittest.TestCase):
         response.__enter__.return_value = response
         response.read.return_value = b"{}"
         response.headers.items.return_value = []
-        with mock.patch("urllib.request.urlopen", return_value=response) as opener:
+        with mock.patch.object(base._OPENER, "open", return_value=response) as opener:
             base.http_json("https://api.example.com/graphql", provider="github", data=b'{"q": 1}')
         request = opener.call_args.args[0]
         self.assertEqual(request.get_method(), "POST")

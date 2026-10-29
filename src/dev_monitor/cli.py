@@ -4,7 +4,7 @@ import webbrowser
 from pathlib import Path
 
 from . import __version__, providers, server, sync
-from .auth import resolve_credential
+from .auth import explain_rejection, resolve_credential
 from .providers.base import LABELS, ProviderError, normalize_host
 from .storage import Store, default_data_dir
 
@@ -40,19 +40,20 @@ def serve(arguments):
 
 def run_sync(arguments):
     store = Store(arguments.data_dir or default_data_dir())
+    credential = None
     try:
         module = providers.get(arguments.provider)
         host = normalize_host(arguments.provider, arguments.host)
         display_timezone = sync.validate_timezone(arguments.timezone)
         credential = resolve_credential(arguments.provider, host, store)
         info = module.inspect(arguments.repo, host, credential)
-        branch = sync.validate_branch(arguments.branch or info.get("current_branch") or info.get("default_branch") or "")
+        branch = sync.validate_branch(arguments.branch or info.get("current_branch") or info.get("default_branch") or "", arguments.provider)
         if not module.branch_exists(info["repository"], branch, host, credential):
             raise ProviderError(f"Target branch {branch!r} is unavailable in {info['repository']}.", 404)
         snapshot, changed = sync.sync_to_directory(arguments.provider, host, info["repository"], branch,
                                                    display_timezone, credential, arguments.out)
     except ProviderError as error:
-        print(error, file=sys.stderr)
+        print(explain_rejection(error, credential, arguments.provider), file=sys.stderr)
         return 1
     print(f"Checked {LABELS[arguments.provider]}: {len(snapshot['records'])} merged PRs into {branch}. "
           f"{'Updated' if changed else 'Unchanged'} snapshot.")

@@ -15,6 +15,15 @@ SLUG = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\Z")
 HOST = re.compile(r"[a-z0-9.-]+(:[0-9]{1,5})?\Z")
 
 
+class _RefuseRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+# urllib copies Authorization/PRIVATE-TOKEN to redirect targets, so redirects are refused outright.
+_OPENER = urllib.request.build_opener(_RefuseRedirects)
+
+
 class ProviderError(Exception):
     def __init__(self, message, status=400):
         super().__init__(message)
@@ -40,12 +49,15 @@ def http_json(url, *, headers=None, provider, timeout=30, data=None):
     if data is not None:
         request.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with _OPENER.open(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
             return body, {key.lower(): value for key, value in response.headers.items()}
     except urllib.error.HTTPError as error:
         response_headers = {key.lower(): value for key, value in (error.headers or {}).items()}
         error.close()
+        if 300 <= error.code < 400:
+            raise ProviderError(f"{label} redirected the request to another address. Check the server address, "
+                                f"or whether a login proxy sits in front of the API.", 502) from None
         if error.code == 401:
             raise ProviderError(f"{label} rejected the token. Create a new one and save it again.", 401) from None
         if error.code == 429 or (error.code == 403 and response_headers.get("x-ratelimit-remaining") == "0"):

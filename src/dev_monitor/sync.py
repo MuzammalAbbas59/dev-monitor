@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import tempfile
 from datetime import datetime, timezone
@@ -22,10 +23,18 @@ def validate_timezone(name):
     return name
 
 
-def validate_branch(branch):
+INVALID_REF = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]|\.\.|@\{|//|/\.|^/|/$|\.lock$|\.lock/|\.$|^@$")
+
+
+def validate_branch(branch, provider="local"):
+    """Validate a branch name; only the Local folder source shells out to git."""
     branch = branch.strip() if isinstance(branch, str) else ""
     if not branch or len(branch) > 255 or branch.startswith("-"):
         raise ProviderError("Enter a valid target branch.")
+    if provider != "local":
+        if INVALID_REF.search(branch):
+            raise ProviderError(f"{branch!r} is not a valid branch name.")
+        return branch
     try:
         result = subprocess.run(["git", "check-ref-format", "--branch", branch], capture_output=True, timeout=10, check=False)
     except FileNotFoundError:

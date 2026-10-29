@@ -1,19 +1,32 @@
 import http.client
 import json
 import os
+import socket
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import __version__, providers, reports, sync
-from .auth import gh_cli_token, resolve_credential
+from .auth import explain_rejection, gh_cli_token, resolve_credential
 from .providers.base import LABELS, ProviderError, normalize_host
 from .storage import DEFAULT_HOSTS
 
 EXPORTS = {"/records.json": "application/json", "/merges.csv": "text/csv", "/REPORT.md": "text/markdown"}
 EMPTY = {"provider": "", "host": "", "repository": "", "branch": "", "timezone": "UTC", "synced_at": None, "records": []}
 FALLBACK_PORTS = 10
+
+
+class MonitorServer(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second process bind a port that is already listening.
+    allow_reuse_address = sys.platform != "win32"
+    daemon_threads = True
+
+    def server_bind(self):
+        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class MonitorApp:
@@ -81,8 +94,17 @@ class MonitorApp:
 
     def inspect(self, payload):
         provider, module, host, source = self._target(payload)
-        result = module.inspect(source, host, self.credential(provider, host))
+        credential = self.credential(provider, host)
+        try:
+            result = module.inspect(source, host, credential)
+        except ProviderError as error:
+            raise self.rejected(error, credential, provider) from None
         return {**result, "provider": provider, "host": host}
+
+    def rejected(self, error, credential, provider):
+        if error.status == 401 and credential and credential.source == "gh":
+            self._gh_cache = None
+        return explain_rejection(error, credential, provider)
 
     def sync(self, payload):
         if not self.refresh_lock.acquire(blocking=False):
@@ -91,31 +113,37 @@ class MonitorApp:
             display_timezone = sync.validate_timezone(payload.get("timezone", "UTC"))
             provider, module, host, source = self._target(payload)
             credential = self.credential(provider, host)
-            info = module.inspect(source, host, credential)
-            requested = payload.get("branch") or ""
-            if not isinstance(requested, str):
-                raise ProviderError("Enter a valid target branch.")
-            branch = requested.strip() or info.get("current_branch") or info.get("default_branch")
-            if not branch:
-                raise ProviderError("This repository has no default branch. Enter a target branch.")
-            branch = sync.validate_branch(branch)
-            if not module.branch_exists(info["repository"], branch, host, credential):
-                raise ProviderError(f"Target branch {branch!r} is unavailable in {info['repository']}.", 404)
-            profile = self.store.profile_id(provider, host, info["repository"], branch)
-            snapshot, _ = sync.sync_to_directory(provider, host, info["repository"], branch, display_timezone,
-                                                 credential, self.store.profile_dir(profile))
-            checked_at = sync.now_z()
-            with self.state_lock:
-                self.store.write_state({"provider": provider, "host": host, "source": info.get("display_source", source),
-                                        "repository": info["repository"], "default_branch": info.get("default_branch"),
-                                        "checkout_path": info.get("checkout_path"),
-                                        "current_branch": info.get("current_branch"),
-                                        "checkout_status": info.get("checkout_status"),
-                                        "local_hint": info.get("hint"), "profile": profile, "checked_at": checked_at})
-            return {"ok": True, "repository": snapshot["repository"], "branch": snapshot["branch"],
-                    "checked_at": checked_at, "count": len(snapshot["records"])}
+            try:
+                return self._sync(display_timezone, provider, module, host, source, credential, payload)
+            except ProviderError as error:
+                raise self.rejected(error, credential, provider) from None
         finally:
             self.refresh_lock.release()
+
+    def _sync(self, display_timezone, provider, module, host, source, credential, payload):
+        info = module.inspect(source, host, credential)
+        requested = payload.get("branch") or ""
+        if not isinstance(requested, str):
+            raise ProviderError("Enter a valid target branch.")
+        branch = requested.strip() or info.get("current_branch") or info.get("default_branch")
+        if not branch:
+            raise ProviderError("This repository has no default branch. Enter a target branch.")
+        branch = sync.validate_branch(branch, provider)
+        if not module.branch_exists(info["repository"], branch, host, credential):
+            raise ProviderError(f"Target branch {branch!r} is unavailable in {info['repository']}.", 404)
+        profile = self.store.profile_id(provider, host, info["repository"], branch)
+        snapshot, _ = sync.sync_to_directory(provider, host, info["repository"], branch, display_timezone,
+                                             credential, self.store.profile_dir(profile))
+        checked_at = sync.now_z()
+        with self.state_lock:
+            self.store.write_state({"provider": provider, "host": host, "source": info.get("display_source", source),
+                                    "repository": info["repository"], "default_branch": info.get("default_branch"),
+                                    "checkout_path": info.get("checkout_path"),
+                                    "current_branch": info.get("current_branch"),
+                                    "checkout_status": info.get("checkout_status"),
+                                    "local_hint": info.get("hint"), "profile": profile, "checked_at": checked_at})
+        return {"ok": True, "repository": snapshot["repository"], "branch": snapshot["branch"],
+                "checked_at": checked_at, "count": len(snapshot["records"])}
 
     def save_credentials(self, payload):
         provider = payload.get("provider")
@@ -134,6 +162,7 @@ class MonitorApp:
             if provider == "bitbucket" and (not isinstance(email, str) or "@" not in email or len(email) > 320):
                 raise ProviderError("Bitbucket tokens need your Atlassian account email.")
             self.store.save_credential(provider, host, token.strip(), email.strip() if provider == "bitbucket" else None)
+        self._gh_cache = None
         return {"ok": True, "tokens": self.token_flags()}
 
     def content(self, path):
@@ -245,13 +274,12 @@ def bind(app, port):
     last_error = None
     for candidate in range(port, port + FALLBACK_PORTS + 1) if port else [0]:
         try:
-            server = ThreadingHTTPServer(("127.0.0.1", candidate), MonitorHandler)
+            server = MonitorServer(("127.0.0.1", candidate), MonitorHandler)
         except OSError as error:
             last_error = error
             if candidate == port and _existing_instance(port, app.store.tool_id):
                 return None, f"http://127.0.0.1:{port}/"
             continue
-        server.daemon_threads = True
         server.app = app
         return server, f"http://127.0.0.1:{server.server_port}/"
     raise OSError(f"No free port between {port} and {port + FALLBACK_PORTS}: {last_error}")

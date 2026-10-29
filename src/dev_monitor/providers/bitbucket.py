@@ -9,7 +9,7 @@ from . import base
 NAME = "bitbucket"
 API = "https://api.bitbucket.org/2.0"
 HOST = "bitbucket.org"
-FIELDS = "+values.description,+values.closed_on,+values.closed_by,+values.merge_commit.hash,next"
+FIELDS = "+values.description,+values.closed_on,+values.closed_by,+values.merge_commit.hash"
 
 
 def _check_host(host):
