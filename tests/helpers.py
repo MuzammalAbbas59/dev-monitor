@@ -22,7 +22,7 @@ GIT_ENV = {"GIT_AUTHOR_NAME": "alice", "GIT_AUTHOR_EMAIL": "alice@example.com",
 
 
 def git(path, *args, env=None, input=None):
-    environment = dict(os.environ, **GIT_ENV, **(env or {}))
+    environment = {**os.environ, **GIT_ENV, **(env or {})}
     return subprocess.run(["git", "-C", str(path), *args], check=True, capture_output=True,
                           env=environment, input=input).stdout.decode("utf-8", "replace")
 
