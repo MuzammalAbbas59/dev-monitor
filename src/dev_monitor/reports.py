@@ -97,7 +97,7 @@ def write_exports(snapshot, directory):
     changed = []
     for name, content in outputs.items():
         target = directory / name
-        if target.exists() and target.read_text(encoding="utf-8", newline="") == content:
+        if target.exists() and target.read_bytes() == content.encode("utf-8"):
             continue
         atomic_write(target, content)
         changed.append(name)
