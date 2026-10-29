@@ -1,0 +1,8 @@
+{"values": [
+  {"id": 7, "title": "Seven", "description": "d7", "links": {"html": {"href": "https://bitbucket.org/ws/repo/pull-requests/7"}},
+   "author": {"nickname": "alice", "display_name": "Alice A"}, "closed_by": {"display_name": "Bob B"},
+   "merge_commit": {"hash": "abc7"}, "updated_on": "2026-01-07T12:00:00.000000+00:00"},
+  {"id": 6, "title": "Six", "description": "", "links": {"html": {"href": "https://bitbucket.org/ws/repo/pull-requests/6"}},
+   "author": null, "closed_by": null, "closed_on": "2026-01-06T09:30:00.123456+00:00",
+   "merge_commit": {"hash": "abc6"}, "updated_on": "2026-01-06T12:00:00+00:00"}
+], "next": "https://api.bitbucket.org/2.0/repositories/ws/repo/pullrequests?page=2"}
