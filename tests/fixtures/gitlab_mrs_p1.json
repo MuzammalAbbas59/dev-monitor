@@ -1,0 +1,7 @@
+[
+  {"iid": 9, "title": "Nine", "description": "d9", "web_url": "https://gitlab.com/group/sub/proj/-/merge_requests/9",
+   "author": {"username": "alice"}, "merge_user": {"username": "bob"}, "merged_by": {"username": "ignored"},
+   "merged_at": "2026-01-02T03:04:05.123Z"},
+  {"iid": 8, "title": "Eight", "description": null, "web_url": "https://gitlab.com/group/sub/proj/-/merge_requests/8",
+   "author": {"username": "bob"}, "merged_by": {"username": "alice"}, "merged_at": "2026-01-01T05:00:00+00:00"}
+]

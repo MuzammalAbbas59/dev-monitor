@@ -1,0 +1,6 @@
+[
+  {"iid": 7, "title": "Seven", "description": "", "web_url": "https://gitlab.com/group/sub/proj/-/merge_requests/7",
+   "author": null, "merge_user": null, "merged_by": null, "merged_at": "2025-12-31T23:00:00Z"},
+  {"iid": 6, "title": "Old", "description": "", "web_url": "https://gitlab.com/group/sub/proj/-/merge_requests/6",
+   "author": {"username": "bob"}, "merged_at": null}
+]
