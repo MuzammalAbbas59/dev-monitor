@@ -1,0 +1,8 @@
+{"data": {"repository": {"pullRequests": {
+  "nodes": [
+    {"number": 3, "title": "Third", "body": "c", "url": "https://github.com/octo-org/widgets/pull/3",
+     "mergedAt": "2026-01-03T10:00:00Z", "author": {"login": "alice"}, "mergedBy": {"login": "bob"}},
+    {"number": 1, "title": "First", "body": null, "url": "https://github.com/octo-org/widgets/pull/1",
+     "mergedAt": "2026-01-01T10:00:00Z", "author": null, "mergedBy": null}
+  ],
+  "pageInfo": {"hasNextPage": true, "endCursor": "CUR1"}}}}}

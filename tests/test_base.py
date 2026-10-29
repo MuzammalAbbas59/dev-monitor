@@ -94,6 +94,18 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(headers, {"x-next-page": "2"})
         self.assertTrue(opener.call_args.args[0].get_header("User-agent").startswith("dev-monitor/"))
 
+    def test_http_json_post_body(self):
+        response = mock.MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b"{}"
+        response.headers.items.return_value = []
+        with mock.patch("urllib.request.urlopen", return_value=response) as opener:
+            base.http_json("https://api.example.com/graphql", provider="github", data=b'{"q": 1}')
+        request = opener.call_args.args[0]
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.data, b'{"q": 1}')
+        self.assertEqual(request.get_header("Content-type"), "application/json")
+
     def test_registry_unknown(self):
         with self.assertRaises(ProviderError):
             providers.get("svn")

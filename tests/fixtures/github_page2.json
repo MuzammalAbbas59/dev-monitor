@@ -1,0 +1,6 @@
+{"data": {"repository": {"pullRequests": {
+  "nodes": [
+    {"number": 2, "title": "Second", "body": "b", "url": "https://github.com/octo-org/widgets/pull/2",
+     "mergedAt": "2026-01-02T10:00:00Z", "author": {"login": "bob"}, "mergedBy": {"login": "alice"}}
+  ],
+  "pageInfo": {"hasNextPage": false, "endCursor": "CUR2"}}}}}
