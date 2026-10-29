@@ -1,0 +1,10 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+.superpowers/
+/records.json
+/merges.csv
+/REPORT.md
+/index.html
