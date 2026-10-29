@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Dev Monitor · Merge history</title>
+  <style>
+    :root { --ink: #15253b; --muted: #647184; --paper: #f5f5f1; --panel: #fff; --line: #e0e4e8; --red: #d62027; --red-soft: #fff0f0; --navy: #203750; --radius: 16px; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button, input, select { font: inherit; }
+    button, select, summary { cursor: pointer; }
+    a { color: var(--navy); text-underline-offset: 3px; }
+    a:hover { color: var(--red); }
+    :focus-visible { outline: 3px solid var(--red); outline-offset: 3px; }
+    button { border: 1px solid var(--line); border-radius: 8px; padding: 8px 13px; background: var(--panel); color: var(--ink); }
+    button:hover { border-color: var(--navy); }
+    button:disabled { opacity: .45; cursor: default; }
+    .shell { max-width: 1450px; margin: 0 auto; padding: 0 36px; }
+    .masthead { color: #fff; background: var(--ink); border-top: 4px solid var(--red); }
+    .masthead .shell { padding-top: 29px; padding-bottom: 31px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 21px; font-size: 12px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+    .brand-mark { display: grid; grid-template-columns: repeat(3, 4px); align-items: end; gap: 3px; height: 18px; }
+    .brand-mark i { background: #f55b60; height: 9px; }
+    .brand-mark i:nth-child(2) { height: 18px; }
+    .brand-mark i:nth-child(3) { height: 13px; }
+    .heading-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+    h1 { margin: 0 0 5px; font-size: clamp(27px, 3vw, 37px); line-height: 1.2; letter-spacing: -.035em; }
+    .intro { margin: 0; color: #bcc8d5; }
+    .source { max-width: 430px; color: #bcc8d5; font-size: 12px; text-align: right; }
+    .source a { color: #fff; }
+    .source p { margin: 4px 0 0; }
+    main { padding-top: 26px; padding-bottom: 35px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+    .connection { padding: 21px 23px; margin-bottom: 19px; }
+    .connection-heading, .connection-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .connection-heading { justify-content: space-between; margin-bottom: 17px; }
+    .connection-fields { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 12px; }
+    .connection-actions button { font-size: 12px; }
+    .connection p { margin: 10px 0 0; }
+    .primary { color: #fff; background: var(--red); border-color: var(--red); font-weight: 600; }
+    .primary:hover { background: #b91c23; border-color: #b91c23; }
+    .filters { padding: 21px 23px 18px; }
+    .filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 17px; }
+    h2 { margin: 0; font-size: 16px; letter-spacing: -.015em; }
+    .reset { padding: 0; border: 0; color: var(--muted); background: none; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+    .fields { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1.55fr; gap: 14px; align-items: end; }
+    label { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+    input, select { width: 100%; min-width: 0; min-height: 42px; padding: 9px 10px; color: var(--ink); background: #fff; border: 1px solid #d1d8df; border-radius: 8px; font-size: 13px; }
+    .timezone-picker { display: flex; gap: 6px; }
+    .timezone-picker button { flex-shrink: 0; padding: 5px 8px; font-size: 12px; }
+    .filter-foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
+    .presets { display: flex; flex-wrap: wrap; gap: 5px; }
+    .presets button { padding: 5px 11px; font-size: 12px; }
+    .presets button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .hint { margin: 0; color: var(--muted); font-size: 12px; }
+    .error { margin: 12px 0 0; color: #a21821; font-size: 13px; }
+    [hidden] { display: none !important; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 19px 0; }
+    .stat { padding: 19px 22px; }
+    .stat-label { margin: 0; font-size: 12px; color: var(--muted); }
+    .stat-value { margin: 5px 0 1px; font-size: 32px; font-weight: 700; line-height: 1.15; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+    .stat:first-child { border-top: 3px solid var(--red); padding-top: 17px; }
+    .stat-note { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+    .breakdowns { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 15px; margin-bottom: 22px; }
+    .breakdown { overflow: hidden; }
+    .panel-heading { padding: 18px 21px 13px; border-bottom: 1px solid var(--line); }
+    .panel-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .breakdown-body { max-height: 245px; min-height: 168px; overflow: auto; padding: 15px 21px; }
+    .activity-row { display: grid; grid-template-columns: 94px 1fr 31px; gap: 12px; align-items: center; margin-bottom: 10px; font-size: 12px; }
+    .activity-row:last-child { margin-bottom: 0; }
+    .activity-date { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .track { height: 9px; overflow: hidden; border-radius: 2px; background: #edf0f3; }
+    .bar { height: 100%; background: var(--navy); border-radius: 2px; }
+    .count { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .person-row { display: flex; justify-content: space-between; gap: 15px; align-items: center; padding: 8px 0; border-bottom: 1px solid #edf0f3; font-size: 13px; }
+    .person-row:first-child { padding-top: 0; }
+    .person-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .person-name { min-width: 0; overflow-wrap: anywhere; }
+    .unknown { color: var(--muted); font-style: italic; }
+    .person-count { flex-shrink: 0; color: var(--navy); background: #eef2f6; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+    .empty-mini { margin: 12px 0; color: var(--muted); font-size: 13px; }
+    .history-heading { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 19px 22px; border-bottom: 1px solid var(--line); }
+    .history-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+    .result-count { color: var(--muted); font-size: 12px; white-space: nowrap; }
+    .table-scroll { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+    thead { background: #fafbfc; }
+    th { padding: 12px 21px; color: var(--muted); text-align: left; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    th:nth-child(1) { width: 20%; }
+    th:nth-child(2) { width: 49%; }
+    th:nth-child(3), th:nth-child(4) { width: 15.5%; }
+    td { padding: 17px 21px; vertical-align: top; border-top: 1px solid var(--line); font-size: 13px; overflow-wrap: anywhere; }
+    .merge-date { font-size: 13px; font-weight: 600; }
+    .merge-time { color: var(--muted); margin-top: 3px; font-size: 12px; font-variant-numeric: tabular-nums; }
+    .pr-title { display: block; text-decoration: none; font-weight: 600; line-height: 1.5; }
+    .pr-title:hover { text-decoration: underline; }
+    .pr-number { color: var(--red); font-weight: 600; margin-right: 8px; white-space: nowrap; }
+    details { margin-top: 8px; font-size: 12px; }
+    summary { display: inline-list-item; margin-left: 12px; color: var(--muted); }
+    details[open] summary { color: var(--ink); }
+    .description { margin: 10px 0 0; padding: 12px 14px; color: #42516a; background: #f5f7f9; border-radius: 8px; font: inherit; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .no-description { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+    .empty { padding: 49px 20px 51px; text-align: center; }
+    .empty h3 { margin: 0 0 7px; font-size: 17px; }
+    .empty p { margin: 0; color: var(--muted); font-size: 13px; }
+    .pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 15px 21px; border-top: 1px solid var(--line); }
+    .pagination p { margin: 0; color: var(--muted); font-size: 12px; }
+    .page-actions { display: flex; gap: 7px; }
+    .page-actions button { padding: 6px 12px; font-size: 12px; }
+    footer { display: flex; justify-content: space-between; gap: 18px; margin-top: 20px; color: var(--muted); font-size: 11px; }
+    footer p { margin: 0; }
+    @media (max-width: 1150px) { .fields { grid-template-columns: repeat(3, 1fr); } .shell { padding-left: 24px; padding-right: 24px; } }
+    @media (max-width: 800px) { .heading-row { display: block; } .source { margin-top: 18px; text-align: left; max-width: none; } .breakdowns { grid-template-columns: 1fr 1fr; } .breakdown:first-child { grid-column: 1 / -1; } .breakdown-body { min-height: 120px; max-height: 200px; } .stats { gap: 10px; } .stat { padding: 16px; } .stat:first-child { padding-top: 14px; } table { min-width: 750px; } }
+    @media (max-width: 540px) { .shell { padding-left: 15px; padding-right: 15px; } .masthead .shell { padding-top: 21px; padding-bottom: 25px; } .brand { margin-bottom: 18px; } .intro { font-size: 13px; } main { padding-top: 17px; } .filters { padding: 17px; } .fields { grid-template-columns: 1fr 1fr; gap: 13px 10px; } .fields .search-field { grid-column: 1 / -1; } .fields .timezone-field { grid-column: 1 / -1; } .filter-foot { gap: 10px; } .stats { grid-template-columns: 1fr 1fr; margin: 15px 0; } .stat-value { font-size: 29px; } .breakdowns { grid-template-columns: 1fr; } .breakdown:first-child { grid-column: auto; } .history-heading { padding: 17px; align-items: flex-start; } .pagination { padding: 14px 17px; } footer { flex-direction: column; gap: 5px; } }
+    @media (max-width: 540px) { .connection { padding: 17px; } .connection-fields { grid-template-columns: 1fr; } }
+    @media print { body { background: #fff; } .masthead { color: var(--ink); background: #fff; } .intro, .source, .source a { color: var(--muted); } .connection, .filters, .pagination, .reset, footer { display: none; } .shell { max-width: none; padding: 0; } .table-scroll, .breakdown-body { overflow: visible; max-height: none; } table { min-width: 0; } .panel { break-inside: avoid; } a { text-decoration: none; } }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div class="shell">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span> Dev Monitor</div>
+      <div class="heading-row">
+        <div><h1>Every merge, in one place.</h1><p class="intro">Explore pull request history by date, author, and the person who merged it.</p></div>
+        <div class="source"><div><a id="repository-link"></a></div><p id="branch-label"></p><p id="sync-label">Loading snapshot…</p></div>
+      </div>
+    </div>
+  </header>
+  <main class="shell">
+    <section class="panel connection" aria-labelledby="connection-heading">
+      <div class="connection-heading"><h2 id="connection-heading">Connect a repository</h2><button type="button" id="refresh" class="primary" disabled>Refresh from GitHub</button></div>
+      <div class="connection-fields">
+        <div><label for="repository-source">GitHub repository or local folder</label><input id="repository-source" placeholder="OWNER/REPO, GitHub URL, or local folder" autocomplete="off" disabled></div>
+        <div><label for="target-branch">Monitor merges into</label><input id="target-branch" list="branch-options" placeholder="Detect branch from repository" autocomplete="off" disabled><datalist id="branch-options"></datalist></div>
+      </div>
+      <div class="connection-actions"><button type="button" id="inspect-repository" disabled>Load repository</button><button type="button" id="current-branch" disabled>Use current branch</button></div>
+      <p class="hint" id="selected-repository"></p>
+      <p class="hint" id="checkout-label">Choose a local folder to detect its checked-out branch.</p>
+      <p class="hint" id="sync-status" role="status" aria-live="polite">Open Dev Monitor.app for live refresh. This file is an offline view.</p>
+      <p class="error" id="sync-error" role="alert" hidden></p>
+    </section>
+    <section class="panel filters" aria-labelledby="filters-heading">
+      <div class="filter-heading"><h2 id="filters-heading">Explore merge history</h2><button class="reset" id="reset" type="button">Reset filters</button></div>
+      <div class="fields">
+        <div class="timezone-field"><label for="timezone">Display timezone</label><div class="timezone-picker"><input id="timezone" list="timezones" placeholder="Search city or IANA timezone" autocomplete="off" aria-describedby="timezone-help timezone-error"><button type="button" id="local-timezone">Use device</button></div><datalist id="timezones"></datalist></div>
+        <div><label for="from-date">From date</label><input type="date" id="from-date"></div>
+        <div><label for="to-date">Through date</label><input type="date" id="to-date"></div>
+        <div><label for="author">PR author</label><select id="author"><option value="">All authors</option></select></div>
+        <div><label for="merger">Merged by</label><select id="merger"><option value="">All mergers</option></select></div>
+        <div class="search-field"><label for="search">Search PRs</label><input id="search" type="search" placeholder="Number, title, or description"></div>
+      </div>
+      <div class="filter-foot"><div class="presets" aria-label="Date range presets"><button type="button" data-preset="24h" aria-pressed="false">Last 24 hours</button><button type="button" data-preset="3" aria-pressed="false">Last 3 days</button><button type="button" data-preset="7" aria-pressed="false">Last 7 days</button><button type="button" data-preset="30" aria-pressed="true">Last 30 days</button><button type="button" data-preset="all" aria-pressed="false">All time</button></div><p class="hint" id="timezone-hint">Dates include the entire day in UTC.</p></div>
+      <p class="hint" id="timezone-help">Search by city and choose a timezone. Daylight saving is applied for each merge date.</p>
+      <p class="error" id="timezone-error" role="alert" hidden></p>
+      <p class="error" id="filter-error" role="alert" hidden></p>
+    </section>
+    <section class="stats" aria-label="Filtered merge statistics">
+      <div class="panel stat"><p class="stat-label">Merged pull requests</p><p class="stat-value" id="total-count">—</p><p class="stat-note">Within the current filters</p></div>
+      <div class="panel stat"><p class="stat-label">Days with merges</p><p class="stat-value" id="day-count">—</p><p class="stat-note" id="day-note">Grouped by UTC date</p></div>
+      <div class="panel stat"><p class="stat-label">PR authors</p><p class="stat-value" id="author-count">—</p><p class="stat-note" id="author-note">Distinct recorded authors</p></div>
+      <div class="panel stat"><p class="stat-label">People who merged</p><p class="stat-value" id="merger-count">—</p><p class="stat-note" id="merger-note">Distinct recorded mergers</p></div>
+    </section>
+    <section class="breakdowns" aria-label="Activity breakdowns">
+      <div class="panel breakdown"><div class="panel-heading"><h2>Daily merges</h2><p id="daily-subtitle">Dates with merges · UTC</p></div><div id="daily" class="breakdown-body"></div></div>
+      <div class="panel breakdown"><div class="panel-heading"><h2>Authored PRs</h2><p>Authorship of the filtered merged PRs</p></div><div id="authors" class="breakdown-body"></div></div>
+      <div class="panel breakdown"><div class="panel-heading"><h2>Merged by</h2><p>Who completed the filtered merges</p></div><div id="mergers" class="breakdown-body"></div></div>
+    </section>
+    <section class="panel history" aria-labelledby="history-heading">
+      <div class="history-heading"><div><h2 id="history-heading">Merge log</h2><p id="history-subtitle">Newest merges first · UTC</p></div><span id="result-count" class="result-count" role="status" aria-live="polite"></span></div>
+      <div class="table-scroll" id="table-container"><table aria-label="Merged pull requests"><thead><tr><th scope="col">Merged at</th><th scope="col">Pull request</th><th scope="col">Author</th><th scope="col">Merged by</th></tr></thead><tbody id="merge-rows"></tbody></table></div>
+      <div class="empty" id="empty" hidden><h3>No merges match these filters</h3><p>Try a wider date range, another person, or a different search.</p></div>
+      <div class="pagination" id="pagination"><p id="page-label"></p><div class="page-actions"><button type="button" id="previous">Previous</button><button type="button" id="next">Next</button></div></div>
+    </section>
+    <footer><p>Counts describe merged PRs. Authorship and the person performing a merge are separate facts.</p><p>Times are stored in UTC. Display times follow the selected timezone’s daylight saving rules.</p></footer>
+  </main>
+  <script id="monitor-data" type="application/json">__MONITOR_DATA__</script>
+  <script>
+    (() => {
+      const byId = (id) => document.getElementById(id);
+      const controls = { zone: byId("timezone"), from: byId("from-date"), to: byId("to-date"), author: byId("author"), merger: byId("merger"), search: byId("search") };
+      const unknownValue = "__unknown__";
+      const pageSize = 50;
+      let page = 0;
+      let preset = "30";
+      let filtered = [];
+      let activeZone = "UTC";
+      let snapshot;
+      try {
+        snapshot = JSON.parse(byId("monitor-data").textContent);
+      } catch {
+        snapshot = { repository: "", branch: "", timezone: "UTC", records: [], synced_at: null };
+      }
+      if (!snapshot.repository) document.querySelectorAll(".stats, .breakdowns, .history").forEach((section) => { section.hidden = true; });
+      const preferenceKey = `dev-monitor:${snapshot.repository}:${snapshot.branch}`;
+      let preferences = {};
+      try { preferences = JSON.parse(localStorage.getItem(preferenceKey)) || {}; } catch {}
+      const selectTimezone = (value) => {
+        try {
+          activeZone = new Intl.DateTimeFormat(undefined, { timeZone: value.trim() }).resolvedOptions().timeZone;
+          controls.zone.value = activeZone;
+          controls.zone.setAttribute("aria-invalid", "false");
+          byId("timezone-error").hidden = true;
+          return true;
+        } catch {
+          controls.zone.setAttribute("aria-invalid", "true");
+          byId("timezone-error").hidden = false;
+          byId("timezone-error").textContent = `Choose a valid IANA timezone from the suggestions. Results still use ${activeZone}.`;
+          return false;
+        }
+      };
+      controls.zone.value = preferences.timezone || snapshot.timezone;
+      selectTimezone(controls.zone.value);
+      const timezoneNames = new Set(["UTC", activeZone, Intl.DateTimeFormat().resolvedOptions().timeZone, ...Intl.supportedValuesOf("timeZone")]);
+      [...timezoneNames].sort().forEach((zone) => {
+        const option = document.createElement("option");
+        option.value = zone;
+        option.label = zone.replaceAll("_", " ");
+        byId("timezones").append(option);
+      });
+      const records = snapshot.records.map((record) => ({ ...record, date: new Date(record.merged_at) })).sort((a, b) => b.date - a.date || b.number - a.number);
+      const dateFormatter = (zone) => new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" });
+      const dateKey = (date, formatter) => {
+        const parts = Object.fromEntries(formatter.formatToParts(date).map((part) => [part.type, part.value]));
+        return `${parts.year}-${parts.month}-${parts.day}`;
+      };
+      const offsetDate = (value, offset) => {
+        const date = new Date(`${value}T12:00:00Z`);
+        date.setUTCDate(date.getUTCDate() + offset);
+        return date.toISOString().slice(0, 10);
+      };
+      const create = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+      const safeLink = (value) => {
+        try {
+          const url = new URL(value);
+          return url.protocol === "https:" && url.hostname === "github.com" ? url.href : null;
+        } catch {
+          return null;
+        }
+      };
+      const repositoryLink = byId("repository-link");
+      document.title = snapshot.repository ? `${snapshot.repository} · Merge history` : "Dev Monitor · Connect a repository";
+      repositoryLink.textContent = snapshot.repository || "Choose a repository below";
+      const repositoryUrl = snapshot.repository && safeLink(`https://github.com/${snapshot.repository}`);
+      if (repositoryUrl) repositoryLink.href = repositoryUrl;
+      byId("branch-label").textContent = snapshot.branch ? `Monitoring merges into ${snapshot.branch}` : "Select the branch to monitor";
+      byId("sync-label").textContent = snapshot.synced_at ? `Snapshot generated ${new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "long" }).format(new Date(snapshot.synced_at))}` : "Not refreshed yet";
+      const populateActors = (select, field) => {
+        const names = [...new Set(records.map((record) => record[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+        names.forEach((name) => {
+          const option = create("option", "", name);
+          option.value = name;
+          select.append(option);
+        });
+        if (records.some((record) => !record[field])) {
+          const option = create("option", "", "Unknown / unavailable");
+          option.value = unknownValue;
+          select.append(option);
+        }
+      };
+      populateActors(controls.author, "author");
+      populateActors(controls.merger, "merged_by");
+      const setPreset = (value) => {
+        preset = value;
+        const today = dateKey(new Date(), dateFormatter(activeZone));
+        const fullDays = Number(value) > 0;
+        controls.to.value = fullDays ? today : "";
+        controls.from.value = fullDays ? offsetDate(today, 1 - Number(value)) : "";
+        document.querySelectorAll("[data-preset]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.preset === preset)));
+      };
+      const actorMatches = (actual, selected) => !selected || (selected === unknownValue ? !actual : actual === selected);
+      const groupActors = (field) => {
+        const counts = new Map();
+        filtered.forEach((record) => {
+          const name = record[field] || unknownValue;
+          counts.set(name, (counts.get(name) || 0) + 1);
+        });
+        return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      };
+      const renderActors = (target, field, countId, noteId) => {
+        target.replaceChildren();
+        const groups = groupActors(field);
+        const known = groups.filter(([name]) => name !== unknownValue);
+        const unknown = groups.find(([name]) => name === unknownValue);
+        byId(countId).textContent = known.length === 0 && unknown ? "Unknown" : known.length.toLocaleString();
+        byId(noteId).textContent = unknown ? `${known.length} recorded · ${unknown[1]} PR${unknown[1] === 1 ? "" : "s"} with unavailable identity` : `Distinct recorded ${field === "author" ? "authors" : "mergers"}`;
+        if (!groups.length) target.append(create("p", "empty-mini", "No matching merges."));
+        groups.forEach(([name, count]) => {
+          const row = create("div", "person-row");
+          row.append(create("span", `person-name${name === unknownValue ? " unknown" : ""}`, name === unknownValue ? "Unknown / unavailable" : name), create("span", "person-count", count.toLocaleString()));
+          target.append(row);
+        });
+      };
+      const renderRows = () => {
+        const zone = activeZone;
+        const dayFormat = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "short", day: "numeric" });
+        const timeFormat = new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23", timeZoneName: "shortOffset" });
+        const body = byId("merge-rows");
+        body.replaceChildren();
+        const start = page * pageSize;
+        filtered.slice(start, start + pageSize).forEach((record) => {
+          const row = create("tr");
+          const when = create("td");
+          const time = create("time", "merge-date", dayFormat.format(record.date));
+          time.dateTime = record.merged_at;
+          when.append(time, create("div", "merge-time", timeFormat.format(record.date)));
+          const pullRequest = create("td");
+          const url = safeLink(record.url);
+          const title = create(url ? "a" : "span", "pr-title");
+          if (url) { title.href = url; title.target = "_blank"; title.rel = "noopener noreferrer"; }
+          title.append(create("span", "pr-number", `#${record.number}`), document.createTextNode(record.title));
+          pullRequest.append(title);
+          if (record.description) {
+            const details = create("details");
+            details.append(create("summary", "", "View description"), create("div", "description", record.description));
+            pullRequest.append(details);
+          } else {
+            pullRequest.append(create("p", "no-description", "No description recorded"));
+          }
+          row.append(when, pullRequest, create("td", record.author ? "" : "unknown", record.author || "Unknown / unavailable"), create("td", record.merged_by ? "" : "unknown", record.merged_by || "Unknown / unavailable"));
+          body.append(row);
+        });
+        byId("table-container").hidden = filtered.length === 0;
+        byId("empty").hidden = filtered.length !== 0;
+        byId("pagination").hidden = filtered.length === 0;
+        byId("page-label").textContent = `${(start + 1).toLocaleString()}–${Math.min(start + pageSize, filtered.length).toLocaleString()} of ${filtered.length.toLocaleString()} PRs`;
+        byId("previous").disabled = page === 0;
+        byId("next").disabled = start + pageSize >= filtered.length;
+      };
+      const render = () => {
+        page = 0;
+        const zone = activeZone;
+        const zoneLabel = zone.replaceAll("_", " ");
+        const formatter = dateFormatter(zone);
+        const query = controls.search.value.trim().toLocaleLowerCase();
+        const now = Date.now();
+        const invalidRange = controls.from.value && controls.to.value && controls.from.value > controls.to.value;
+        byId("filter-error").hidden = !invalidRange;
+        byId("filter-error").textContent = invalidRange ? "The from date must be on or before the through date." : "";
+        controls.from.setAttribute("aria-invalid", String(Boolean(invalidRange)));
+        controls.to.setAttribute("aria-invalid", String(Boolean(invalidRange)));
+        filtered = invalidRange ? [] : records.filter((record) => {
+          const date = dateKey(record.date, formatter);
+          return (preset !== "24h" || (record.date >= now - 86400000 && record.date <= now)) && (!controls.from.value || date >= controls.from.value) && (!controls.to.value || date <= controls.to.value) && actorMatches(record.author, controls.author.value) && actorMatches(record.merged_by, controls.merger.value) && (!query || `${record.number} ${record.title} ${record.description || ""}`.toLocaleLowerCase().includes(query));
+        });
+        byId("timezone-hint").textContent = preset === "24h" ? `The last 24 hours, ending now. Times shown in ${zoneLabel}.` : `Dates include the entire day in ${zoneLabel}.`;
+        byId("day-note").textContent = `Grouped by ${zoneLabel} date`;
+        byId("daily-subtitle").textContent = `Dates with merges · ${zoneLabel}`;
+        byId("history-subtitle").textContent = `Newest merges first · ${zoneLabel}`;
+        byId("total-count").textContent = filtered.length.toLocaleString();
+        byId("result-count").textContent = `${filtered.length.toLocaleString()} matching PR${filtered.length === 1 ? "" : "s"}`;
+        const daily = new Map();
+        filtered.forEach((record) => {
+          const date = dateKey(record.date, formatter);
+          daily.set(date, (daily.get(date) || 0) + 1);
+        });
+        byId("day-count").textContent = daily.size.toLocaleString();
+        const dailyBody = byId("daily");
+        dailyBody.replaceChildren();
+        if (!daily.size) dailyBody.append(create("p", "empty-mini", "No matching merges."));
+        const max = Math.max(...daily.values(), 1);
+        [...daily].sort((a, b) => b[0].localeCompare(a[0])).forEach(([date, count]) => {
+          const row = create("div", "activity-row");
+          const track = create("div", "track");
+          track.setAttribute("aria-hidden", "true");
+          const bar = create("div", "bar");
+          bar.style.width = `${count / max * 100}%`;
+          track.append(bar);
+          row.append(create("span", "activity-date", date), track, create("span", "count", count.toLocaleString()));
+          dailyBody.append(row);
+        });
+        renderActors(byId("authors"), "author", "author-count", "author-note");
+        renderActors(byId("mergers"), "merged_by", "merger-count", "merger-note");
+        renderRows();
+        try { localStorage.setItem(preferenceKey, JSON.stringify({ timezone: zone, preset, from: controls.from.value, to: controls.to.value })); } catch {}
+      };
+      document.querySelectorAll("[data-preset]").forEach((button) => button.addEventListener("click", () => { setPreset(button.dataset.preset); render(); }));
+      controls.zone.addEventListener("change", () => { if (selectTimezone(controls.zone.value)) { if (preset) setPreset(preset); render(); } });
+      byId("local-timezone").addEventListener("click", () => { selectTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone); if (preset) setPreset(preset); render(); });
+      [controls.from, controls.to].forEach((input) => input.addEventListener("change", () => { preset = ""; document.querySelectorAll("[data-preset]").forEach((button) => button.setAttribute("aria-pressed", "false")); render(); }));
+      [controls.author, controls.merger].forEach((select) => select.addEventListener("change", render));
+      controls.search.addEventListener("input", render);
+      byId("reset").addEventListener("click", () => { selectTimezone(snapshot.timezone); controls.author.value = ""; controls.merger.value = ""; controls.search.value = ""; setPreset("30"); render(); });
+      byId("previous").addEventListener("click", () => { page -= 1; renderRows(); });
+      byId("next").addEventListener("click", () => { page += 1; renderRows(); });
+      let localApp = false;
+      let currentBranch = null;
+      const sourceInput = byId("repository-source");
+      const branchInput = byId("target-branch");
+      const refreshButton = byId("refresh");
+      sourceInput.value = snapshot.repository;
+      branchInput.value = snapshot.branch;
+      const busy = (running, refreshing = false) => {
+        [sourceInput, branchInput, refreshButton, byId("inspect-repository")].forEach((control) => { control.disabled = running || !localApp; });
+        byId("current-branch").disabled = running || !localApp || !currentBranch;
+        refreshButton.textContent = refreshing ? "Refreshing…" : "Refresh from GitHub";
+        byId("connection-heading").parentElement.parentElement.setAttribute("aria-busy", String(running));
+      };
+      const showContext = (info) => {
+        currentBranch = info.current_branch;
+        byId("current-branch").disabled = !localApp || !currentBranch;
+        byId("selected-repository").textContent = info.repository ? `Selected repository: ${info.repository}${info.default_branch ? ` · Default branch: ${info.default_branch}` : ""}` : "";
+        byId("checkout-label").textContent = info.checkout_path ? `Local checkout: ${info.checkout_path} · ${currentBranch ? `Checked-out branch: ${currentBranch}` : info.checkout_status}` : "GitHub repository · Choose a local folder to detect a checked-out branch.";
+        const options = byId("branch-options");
+        options.replaceChildren();
+        [...new Set([info.default_branch, currentBranch].filter(Boolean))].forEach((branch) => {
+          const option = create("option", "", branch);
+          option.value = branch;
+          options.append(option);
+        });
+      };
+      const api = async (path, payload) => {
+        const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Dev-Monitor": "1" }, body: JSON.stringify(payload) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error);
+        return result;
+      };
+      const showSyncError = (error) => {
+        byId("sync-error").textContent = error.message;
+        byId("sync-error").hidden = false;
+        byId("sync-status").textContent = "The saved history is still available. Correct the issue and try again.";
+      };
+      sourceInput.addEventListener("input", () => { branchInput.value = ""; showContext({ current_branch: null, checkout_path: null, default_branch: null }); });
+      byId("current-branch").addEventListener("click", () => { branchInput.value = currentBranch; });
+      byId("inspect-repository").addEventListener("click", async () => {
+        busy(true);
+        byId("sync-error").hidden = true;
+        byId("sync-status").textContent = "Loading repository and branch details…";
+        try {
+          const info = await api("/api/repository", { source: sourceInput.value });
+          sourceInput.value = info.source;
+          branchInput.value = info.current_branch || info.default_branch || "";
+          showContext(info);
+          byId("sync-status").textContent = "Repository loaded. Refresh from GitHub to fetch merged PRs for the selected branch.";
+        } catch (error) { showSyncError(error); } finally { busy(false); }
+      });
+      refreshButton.addEventListener("click", async () => {
+        if (!selectTimezone(controls.zone.value)) return;
+        busy(true, true);
+        byId("sync-error").hidden = true;
+        byId("sync-status").textContent = "Fetching merged PRs from GitHub. Your saved history stays available while this runs…";
+        try {
+          await api("/api/sync", { source: sourceInput.value, branch: branchInput.value, timezone: activeZone });
+          location.reload();
+        } catch (error) { showSyncError(error); } finally { busy(false); }
+      });
+      const connectLocalApp = async () => {
+        if (location.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(location.hostname)) return;
+        try {
+          const response = await fetch("/api/state", { cache: "no-store" });
+          if (!response.ok) return;
+          const info = await response.json();
+          if (!info.local_app) return;
+          localApp = true;
+          sourceInput.value = info.source;
+          branchInput.value = info.branch;
+          showContext(info);
+          busy(false);
+          byId("sync-status").textContent = info.checked_at ? `Last checked GitHub ${new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "long" }).format(new Date(info.checked_at))}` : "Ready. Choose a repository or local folder, then refresh from GitHub.";
+        } catch {}
+      };
+      setPreset(preferences.preset ?? "30");
+      if (preferences.preset === "") { controls.from.value = preferences.from; controls.to.value = preferences.to; }
+      render();
+      connectLocalApp();
+    })();
+  </script>
+</body>
+</html>
