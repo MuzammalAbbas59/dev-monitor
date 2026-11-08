@@ -8,13 +8,51 @@ Everything runs on your own computer: a small local web page, no account, no dat
 
 ## Install
 
-You need Python 3.10 or newer. Install with [pipx](https://pipx.pypa.io/) or [uv](https://docs.astral.sh/uv/):
+Dev Monitor is installed with [pipx](https://pipx.pypa.io/), which puts the `dev-monitor` command on your PATH without touching your other Python packages.
+
+**1. Get pipx** (skip if `pipx --version` already works):
+
+| OS | Commands |
+|---|---|
+| macOS ([Homebrew](https://brew.sh)) | `brew install pipx` then `pipx ensurepath` |
+| Windows | `py -m pip install --user pipx` then `py -m pipx ensurepath` |
+| Ubuntu / Debian | `sudo apt install pipx` then `pipx ensurepath` |
+| Fedora | `sudo dnf install pipx` then `pipx ensurepath` |
+| Other Linux | `python3 -m pip install --user pipx` then `python3 -m pipx ensurepath` |
+
+Then **close and reopen your terminal** so the new PATH takes effect.
+
+No Python yet? On macOS, Homebrew installs it along with pipx. On Windows, install Python 3.10 or newer from [python.org](https://www.python.org/downloads/) and tick "Add python.exe to PATH". On Linux, use your package manager.
+
+**2. Install Dev Monitor:**
 
 ```sh
 pipx install dev-monitor
-# or
+```
+
+**3. Check it worked:**
+
+```sh
+dev-monitor --version
+```
+
+If the terminal says `command not found` (or `not recognized` on Windows), open a new terminal window, or run `pipx ensurepath` again.
+
+<details>
+<summary>Prefer uv?</summary>
+
+[uv](https://docs.astral.sh/uv/) downloads its own Python, so you don't need one installed first.
+
+```sh
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
 uv tool install dev-monitor
 ```
+
+</details>
 
 To try the latest unreleased code instead:
 
@@ -96,13 +134,14 @@ Each repository and branch pair has its own snapshot under `profiles/`. Delete t
 
 One repository and one target branch at a time. Merged PRs only: no open PRs, deployments, or CI stats. Refresh is manual. Bitbucket Server and Data Center are not supported.
 
-## Upgrade
+## Upgrade or remove
 
 ```sh
-pipx upgrade dev-monitor
-# or
-uv tool upgrade dev-monitor
+pipx upgrade dev-monitor      # uv: uv tool upgrade dev-monitor
+pipx uninstall dev-monitor    # uv: uv tool uninstall dev-monitor
 ```
+
+Uninstalling leaves your saved data and tokens in place. Delete the data folder (see *Where data lives*) to remove them too.
 
 ## Development
 
@@ -111,6 +150,6 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m dev_monitor --data-dir /tmp/dm --port 8799
 ```
 
-To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.2`. GitHub Actions publishes it to PyPI.
+To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.3`. GitHub Actions publishes it to PyPI.
 
 MIT licensed.
