@@ -1,5 +1,7 @@
 # Dev Monitor
 
+[![PyPI](https://img.shields.io/pypi/v/dev-monitor)](https://pypi.org/project/dev-monitor/) [![CI](https://github.com/MuzammalAbbas59/dev-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/MuzammalAbbas59/dev-monitor/actions/workflows/ci.yml)
+
 See how many pull requests merge into a branch each day, who authors them, and who merges them. Works with GitHub, GitLab, Bitbucket Cloud, or a plain local git checkout, on Windows, macOS, and Linux.
 
 Everything runs on your own computer: a small local web page, no account, no database, and no server to host.
@@ -14,7 +16,7 @@ pipx install dev-monitor
 uv tool install dev-monitor
 ```
 
-Until the first PyPI release, install from GitHub:
+To try the latest unreleased code instead:
 
 ```sh
 pipx install git+https://github.com/MuzammalAbbas59/dev-monitor
@@ -94,11 +96,21 @@ Each repository and branch pair has its own snapshot under `profiles/`. Delete t
 
 One repository and one target branch at a time. Merged PRs only: no open PRs, deployments, or CI stats. Refresh is manual. Bitbucket Server and Data Center are not supported.
 
+## Upgrade
+
+```sh
+pipx upgrade dev-monitor
+# or
+uv tool upgrade dev-monitor
+```
+
 ## Development
 
 ```sh
 PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m dev_monitor --data-dir /tmp/dm --port 8799
 ```
+
+To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.1`. GitHub Actions publishes it to PyPI.
 
 MIT licensed.
