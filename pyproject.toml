@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,7 +9,7 @@ description = "See how many pull requests merge each day, who authors them, and 
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{ name = "mabid" }]
+authors = [{ name = "Muzammal Abbas", email = "abmuzammal17@gmail.com" }]
 dependencies = ['tzdata; sys_platform == "win32"']
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -19,8 +19,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/mabid/dev-monitor"
-Issues = "https://github.com/mabid/dev-monitor/issues"
+Homepage = "https://github.com/MuzammalAbbas59/dev-monitor"
+Issues = "https://github.com/MuzammalAbbas59/dev-monitor/issues"
 
 [project.scripts]
 dev-monitor = "dev_monitor.cli:main"

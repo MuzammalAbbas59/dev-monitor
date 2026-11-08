@@ -17,7 +17,7 @@ uv tool install dev-monitor
 Until the first PyPI release, install from GitHub:
 
 ```sh
-pipx install git+https://github.com/mabid/dev-monitor
+pipx install git+https://github.com/MuzammalAbbas59/dev-monitor
 ```
 
 ## Run
