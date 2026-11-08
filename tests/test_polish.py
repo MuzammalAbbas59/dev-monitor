@@ -67,6 +67,33 @@ class SecondaryRateLimitTests(unittest.TestCase):
         self.assertEqual(caught.exception.status, 429)
 
 
+class GatewayRetryTests(unittest.TestCase):
+    def test_retries_temporary_gateway_errors(self):
+        class Ok:
+            headers = {}
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self): return b'{"ok": true}'
+        attempts = []
+
+        def flaky(request, timeout):
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise urllib.error.HTTPError(request.full_url, 504, "Gateway Timeout", Message(), io.BytesIO(b""))
+            return Ok()
+
+        with mock.patch.object(base._OPENER, "open", flaky), mock.patch.object(base.time, "sleep"):
+            body, _ = base.http_json("https://api.github.com/graphql", provider="github", data=b"{}")
+        self.assertEqual((body, len(attempts)), ({"ok": True}, 3))
+
+    def test_gives_up_after_three_tries(self):
+        error = urllib.error.HTTPError("https://api.github.com/x", 503, "Unavailable", Message(), io.BytesIO(b""))
+        with mock.patch.object(base._OPENER, "open", side_effect=error) as opened, mock.patch.object(base.time, "sleep"):
+            with self.assertRaisesRegex(ProviderError, "busy"):
+                base.http_json("https://api.github.com/x", provider="github")
+        self.assertEqual(opened.call_count, 3)
+
+
 class _BrokenResponse:
     def __init__(self, error):
         self.error = error

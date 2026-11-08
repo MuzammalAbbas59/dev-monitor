@@ -82,12 +82,14 @@ When a newer release is out, a notice at the top of the dashboard (and in the te
 
 | Source | Token | Where to create it | Permissions |
 |---|---|---|---|
-| GitHub | Uses `gh` if you're logged in, else paste a token | [Fine-grained token](https://github.com/settings/personal-access-tokens/new) | Read-only: Contents, Pull requests |
+| GitHub | Uses every account you're logged in to with `gh`, else paste a token | [Fine-grained token](https://github.com/settings/personal-access-tokens/new) | Read-only: Contents, Pull requests |
 | GitLab | Not needed for public projects | User settings → Access tokens | `read_api` |
 | Bitbucket Cloud | Not needed for public repositories. API token plus your Atlassian email | [Atlassian API tokens](https://id.atlassian.com/manage-profile/security/api-tokens) | `read:repository:bitbucket`, `read:pullrequest:bitbucket` |
 | Local folder | None | | |
 
-Paste a token into the dashboard once. It is saved only on your computer, in `credentials.json` inside the data folder, readable only by you.
+Paste a token into the dashboard once. It is saved only on your computer, in `credentials.json` inside the data folder, readable only by you. A token is saved for the owner of the repository you loaded (for example `my-org`), so tokens for different organizations never replace each other. Click **Use a different token** at any time to add one.
+
+**Several GitHub accounts?** Log in to each with `gh auth login`. Dev Monitor tries your saved tokens, then every `gh` account, until one can read the repository, remembers which one worked for that owner, and shows it ("Using gh account octocat"). If none can, the token box opens and the error lists the accounts it tried. Organizations that block the GitHub CLI need a token from an account with access.
 
 You can also use environment variables: `GITHUB_TOKEN`, `GITLAB_TOKEN`, or `BITBUCKET_EMAIL` with `BITBUCKET_TOKEN`.
 
@@ -153,6 +155,6 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m dev_monitor --data-dir /tmp/dm --port 8799
 ```
 
-To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.4`. GitHub Actions publishes it to PyPI.
+To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.5`. GitHub Actions publishes it to PyPI.
 
 MIT licensed.

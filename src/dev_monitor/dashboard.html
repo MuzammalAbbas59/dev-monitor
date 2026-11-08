@@ -163,9 +163,9 @@
           <div><label for="token-input">Access token</label><input id="token-input" type="password" autocomplete="off" spellcheck="false"></div>
           <button type="button" id="save-token">Save token</button>
         </div>
-        <p class="hint"><a id="token-link" target="_blank" rel="noopener noreferrer">Create a token</a> with <span id="token-scope"></span>. It is saved only on this computer and sent only to <span id="token-host"></span>.</p>
+        <p class="hint"><a id="token-link" target="_blank" rel="noopener noreferrer">Create a token</a> with <span id="token-scope"></span>. It is saved only on this computer<span id="token-owner"></span>, and sent only to <span id="token-host"></span>.</p>
       </div>
-      <p class="hint" id="token-saved" hidden>Token ready for <span id="token-saved-host"></span> · <button type="button" class="inline-link" id="forget-token">Forget saved token</button></p>
+      <p class="hint" id="token-saved" hidden><span id="token-saved-host"></span> · <button type="button" class="inline-link" id="other-token">Use a different token</button><span id="forget-wrap"> · <button type="button" class="inline-link" id="forget-token">Forget saved token</button></span></p>
       <div class="connection-actions"><button type="button" id="inspect-repository" disabled>Load repository</button><button type="button" id="current-branch" disabled>Use current branch</button></div>
       <p class="hint" id="selected-repository"></p>
       <p class="hint" id="checkout-label"></p>
@@ -436,6 +436,11 @@
       byId("next").addEventListener("click", () => { page += 1; renderRows(); });
       let localApp = false;
       let folderPicker = false;
+      let currentLogin = null;
+      let currentOwner = null;
+      let showTokenForm = false;
+      const PUBLIC = "no login (public access)";
+      const ownerGuess = () => currentOwner || ((sourceInput.value.trim().match(/^([\w.-]+)\/[\w.-]+$/) || [])[1] || "").toLowerCase();
       let currentBranch = null;
       let tokens = {};
       let defaultCheckout = null;
@@ -474,10 +479,13 @@
         sourceInput.placeholder = defaultCheckout ? `${config.placeholder} (empty: ${defaultCheckout})` : config.placeholder;
         byId("server-field").hidden = !config.server;
         serverInput.placeholder = config.host;
-        const hasToken = Boolean(tokens[`${name}:${host}`]);
-        byId("token-row").hidden = isLocal || hasToken || !localApp;
-        byId("token-saved").hidden = isLocal || !hasToken || !localApp;
-        byId("token-saved-host").textContent = host;
+        const hasLogin = Boolean(tokens[`${name}:${host}`]) || Boolean(currentLogin && currentLogin !== PUBLIC);
+        byId("token-row").hidden = isLocal || !localApp || (hasLogin && !showTokenForm);
+        byId("token-saved").hidden = isLocal || !localApp || !hasLogin || !byId("token-row").hidden;
+        byId("token-saved-host").textContent = currentLogin && currentLogin !== PUBLIC ? `Using ${currentLogin}` : `A login for ${host} is ready`;
+        byId("forget-wrap").hidden = !(currentLogin || "").startsWith("token saved");
+        const owner = ownerGuess();
+        byId("token-owner").textContent = owner ? ` and used only for ${owner}'s repositories` : "";
         byId("token-host").textContent = host;
         byId("token-email-field").hidden = name !== "bitbucket";
         byId("token-scope").textContent = config.scope;
@@ -489,7 +497,7 @@
         refreshButton.textContent = "Refresh";
       };
       const busy = (running, refreshing = false) => {
-        [providerSelect, sourceInput, serverInput, branchInput, refreshButton, byId("inspect-repository"), tokenInput, emailInput, byId("save-token"), byId("forget-token"), byId("browse-folder"), byId("use-hosted")].forEach((control) => { control.disabled = running || !localApp; });
+        [providerSelect, sourceInput, serverInput, branchInput, refreshButton, byId("inspect-repository"), tokenInput, emailInput, byId("save-token"), byId("forget-token"), byId("browse-folder"), byId("use-hosted"), byId("other-token")].forEach((control) => { control.disabled = running || !localApp; });
         byId("current-branch").disabled = running || !localApp || !currentBranch;
         updateProviderUI();
         refreshButton.textContent = refreshing ? "Refreshing…" : "Refresh";
@@ -525,10 +533,12 @@
       const showSyncError = (error) => {
         byId("sync-error").textContent = error.message;
         byId("sync-error").hidden = false;
+        // Offer a token whenever the host turned us away, even if a gh login exists.
+        if (/token|login|can't read|couldn't find|rejected|denied/i.test(error.message)) { showTokenForm = true; updateProviderUI(); }
         byId("sync-status").textContent = "The saved history is still available. Correct the issue and try again.";
       };
       const target = () => ({ provider: providerSelect.value, host: provider().server ? serverInput.value.trim() : "", source: sourceInput.value });
-      const resetContext = () => { branchInput.value = ""; showContext({ current_branch: null, checkout_path: null, default_branch: null }); updateProviderUI(); };
+      const resetContext = () => { currentLogin = null; currentOwner = null; branchInput.value = ""; showContext({ current_branch: null, checkout_path: null, default_branch: null }); updateProviderUI(); };
       sourceInput.addEventListener("input", resetContext);
       serverInput.addEventListener("input", resetContext);
       providerSelect.addEventListener("change", () => {
@@ -537,6 +547,7 @@
         resetContext();
       });
       byId("current-branch").addEventListener("click", () => { branchInput.value = currentBranch; });
+      byId("other-token").addEventListener("click", () => { showTokenForm = true; updateProviderUI(); tokenInput.focus(); });
       byId("browse-folder").addEventListener("click", async () => {
         busy(true);
         byId("sync-error").hidden = true;
@@ -552,19 +563,26 @@
         byId("inspect-repository").click();
       });
       byId("save-token").addEventListener("click", async () => {
+        let saved = false;
         busy(true);
         byId("sync-error").hidden = true;
         try {
-          const result = await api("/api/credentials", { provider: providerSelect.value, host: target().host, token: tokenInput.value, email: emailInput.value || null });
+          const result = await api("/api/credentials", { provider: providerSelect.value, host: target().host, owner: ownerGuess() || null, token: tokenInput.value, email: emailInput.value || null });
           tokens = result.tokens || {};
           tokenInput.value = "";
+          showTokenForm = false;
           byId("sync-status").textContent = "Token saved on this computer.";
+          saved = true;
         } catch (error) { showSyncError(error); } finally { busy(false); }
+        if (saved) byId("inspect-repository").click();
       });
       byId("forget-token").addEventListener("click", async () => {
         busy(true);
         try {
-          const result = await api("/api/credentials", { provider: providerSelect.value, host: target().host, token: null });
+          const savedFor = (currentLogin || "").replace(/^token saved for /, "");
+          const owner = savedFor && savedFor !== currentHost() && savedFor !== currentLogin ? savedFor : null;
+          const result = await api("/api/credentials", { provider: providerSelect.value, host: target().host, owner, token: null });
+          currentLogin = null;
           tokens = result.tokens || {};
           byId("sync-status").textContent = tokens[`${providerSelect.value}:${currentHost()}`] ? "Saved token removed. A token from your environment or gh is still available." : "Saved token removed.";
         } catch (error) { showSyncError(error); } finally { busy(false); }
@@ -578,6 +596,9 @@
           const info = await api("/api/repository", target());
           sourceInput.value = info.display_source || info.repository;
           branchInput.value = info.default_branch || info.current_branch || "";
+          currentLogin = info.credential || null;
+          currentOwner = info.owner || null;
+          showTokenForm = false;
           showContext(info);
           loaded = Boolean(branchInput.value);
           byId("sync-status").textContent = loaded ? "Repository loaded." : "Repository loaded. Enter the branch to monitor, then click Refresh.";
@@ -632,6 +653,8 @@
           localApp = true;
           tokens = info.tokens || {};
           folderPicker = Boolean(info.folder_picker);
+          currentLogin = info.login || null;
+          currentOwner = info.owner || null;
           showUpdate(info.update);
           // The daily version check runs in the background at startup; pick up its answer shortly after.
           setTimeout(async () => {

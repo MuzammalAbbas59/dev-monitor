@@ -3,6 +3,7 @@ import json
 import re
 import ssl
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -42,8 +43,23 @@ def _reset_time(headers):
     return "later"
 
 
-def http_json(url, *, headers=None, provider, timeout=30, data=None):
-    """GET (or POST when data is given) JSON. Errors never include request headers."""
+class _Temporary(Exception):
+    """A gateway error (502/503/504) that usually clears on its own."""
+
+
+def http_json(url, *, headers=None, provider, timeout=30, data=None, attempts=3):
+    """GET (or POST when data is given) JSON, retrying brief gateway errors. Errors never include request headers."""
+    for attempt in range(attempts):
+        try:
+            return _request_json(url, headers=headers, provider=provider, timeout=timeout, data=data)
+        except _Temporary:
+            if attempt == attempts - 1:
+                raise ProviderError(f"{LABELS.get(provider, provider)} is busy right now and returned a temporary error. "
+                                    f"Try again in a minute.", 503) from None
+            time.sleep(1 + attempt)
+
+
+def _request_json(url, *, headers, provider, timeout, data):
     label = LABELS.get(provider, provider)
     request = urllib.request.Request(url, data=data, method="POST" if data is not None else "GET",
                                      headers={"User-Agent": f"dev-monitor/{__version__}",
@@ -57,6 +73,8 @@ def http_json(url, *, headers=None, provider, timeout=30, data=None):
     except urllib.error.HTTPError as error:
         response_headers = {key.lower(): value for key, value in (error.headers or {}).items()}
         error.close()
+        if error.code in (502, 503, 504):
+            raise _Temporary() from None
         if 300 <= error.code < 400:
             raise ProviderError(f"{label} redirected the request to another address. Check the server address, "
                                 f"or whether a login proxy sits in front of the API.", 502) from None

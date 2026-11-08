@@ -40,6 +40,7 @@ class Store:
         self.tool_id = hashlib.sha256(("dev-monitor:" + str(self.root.resolve())).encode()).hexdigest()
         self.state_file = self.root / "state.json"
         self.credentials_file = self.root / "credentials.json"
+        self.logins_file = self.root / "logins.json"
 
     def profile_id(self, provider, host, repository, branch):
         repository = repository if provider == "local" else repository.lower()
@@ -77,20 +78,47 @@ class Store:
             raise
         os.chmod(self.credentials_file, 0o600)
 
-    def saved_credential(self, provider, host):
-        from .auth import Credential
-        entry = self._credentials().get(f"{provider}:{host}")
-        return Credential(entry["token"], entry.get("email")) if entry else None
+    @staticmethod
+    def _key(provider, host, owner=None):
+        # Owners are case-insensitive on GitHub, GitLab and Bitbucket.
+        return f"{provider}:{host}:{owner.lower()}" if owner else f"{provider}:{host}"
 
-    def save_credential(self, provider, host, token, email=None):
+    def saved_credential(self, provider, host, owner=None):
+        """The token saved for exactly this owner (or, with no owner, for the whole host)."""
+        from .auth import Credential
+        entry = self._credentials().get(self._key(provider, host, owner))
+        if not entry:
+            return None
+        return Credential(entry["token"], entry.get("email"), source=f"saved:{owner.lower()}" if owner else "saved")
+
+    def save_credential(self, provider, host, token, email=None, owner=None):
         credentials = self._credentials()
-        credentials[f"{provider}:{host}"] = {"token": token, "email": email}
+        credentials[self._key(provider, host, owner)] = {"token": token, "email": email}
         self._write_credentials(credentials)
 
-    def forget_credential(self, provider, host):
+    def forget_credential(self, provider, host, owner=None):
         credentials = self._credentials()
-        if credentials.pop(f"{provider}:{host}", None) is not None:
+        if credentials.pop(self._key(provider, host, owner), None) is not None:
             self._write_credentials(credentials)
+
+    def _logins(self):
+        try:
+            data = json.loads(self.logins_file.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def preferred_login(self, provider, host, owner):
+        """Which login last worked for this owner, such as "gh:octocat". Never a token."""
+        return self._logins().get(self._key(provider, host, owner)) if owner else None
+
+    def remember_login(self, provider, host, owner, source):
+        if not owner:
+            return
+        logins = self._logins()
+        if logins.get(self._key(provider, host, owner)) != source:
+            logins[self._key(provider, host, owner)] = source
+            atomic_write(self.logins_file, json.dumps(logins, indent=2) + "\n")
 
     def credential_flags(self):
         return {key: True for key in self._credentials()}

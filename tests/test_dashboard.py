@@ -7,7 +7,7 @@ IDS = ["provider", "repository-source", "server-host", "server-field", "token-ro
        "save-token", "forget-token", "token-link", "target-branch", "branch-options", "current-branch", "refresh",
        "local-note", "local-hint", "log-search", "search", "result-count", "browse-folder",
        "update-banner", "update-command", "copy-update", "dismiss-update",
-       "use-hosted"]
+       "use-hosted", "other-token", "token-owner"]
 
 
 class DashboardTemplateTests(unittest.TestCase):
@@ -20,6 +20,12 @@ class DashboardTemplateTests(unittest.TestCase):
         handler = TEMPLATE[TEMPLATE.index('byId("inspect-repository").addEventListener'):]
         handler = handler[:handler.index("refreshButton.addEventListener")]
         self.assertIn("refreshButton.click()", handler)
+
+    def test_token_form_always_reachable_and_scoped_to_owner(self):
+        self.assertIn('byId("other-token").addEventListener', TEMPLATE)
+        save = TEMPLATE[TEMPLATE.index('byId("save-token").addEventListener'):]
+        save = save[:save.index("});")]
+        self.assertIn("owner:", save)
 
     def test_placeholder_once(self):
         self.assertEqual(TEMPLATE.count("__MONITOR_DATA__"), 1)

@@ -1,6 +1,7 @@
 import http.client
 import json
 import os
+import re
 import socket
 import sys
 import threading
@@ -9,13 +10,62 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import __version__, picker, providers, reports, sync, updates
-from .auth import explain_rejection, gh_cli_token, resolve_credential
+from .auth import credential_candidates, describe, explain_rejection, gh_cli_accounts, gh_cli_token
+from .providers import base
 from .providers.base import LABELS, ProviderError, normalize_host, unquote_source
 from .storage import DEFAULT_HOSTS
 
 EXPORTS = {"/records.json": "application/json", "/merges.csv": "text/csv", "/REPORT.md": "text/markdown"}
 EMPTY = {"provider": "", "host": "", "repository": "", "branch": "", "timezone": "UTC", "synced_at": None, "records": []}
 FALLBACK_PORTS = 10
+OWNER = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,99}\Z")
+RETRY_WITH_ANOTHER_LOGIN = (401, 403, 404)
+
+
+def source_owner(module, source, host):
+    """The owner (user, org, group or workspace) a source names, before any API call; None when unclear."""
+    try:
+        kind, value = base.parse_hosted_source(source, host, getattr(module, "SLUG", base.SLUG))
+        if kind == "path":
+            remote = base.origin_remote(value) if value else None
+            value = remote[1] if remote and remote[0] == host else ""
+    except ProviderError:
+        return None
+    return value.split("/")[0].lower() if "/" in value else None
+
+
+def repository_owner(info):
+    repository = info.get("repository") or ""
+    return repository.split("/")[0].lower() if "/" in repository and not repository.startswith("/") else None
+
+
+def open_repository(store, env, gh_accounts, provider, module, host, source):
+    """Inspect a repository with each available login in turn; return (info, the login that worked)."""
+    if provider == "local":
+        return module.inspect(source, host, None), None
+    owner = source_owner(module, source, host)
+    preferred = store.preferred_login(provider, host, owner)
+    candidates = credential_candidates(provider, host, owner, store, env, gh_accounts)
+    candidates.sort(key=lambda credential: credential.source != preferred)
+    tried, last = [], None
+    for credential in candidates + [None]:  # public access last
+        try:
+            info = module.inspect(source, host, credential)
+        except ProviderError as error:
+            if error.status not in RETRY_WITH_ANOTHER_LOGIN:
+                raise explain_rejection(error, credential, provider) from None
+            tried, last = tried + [credential], error
+            continue
+        if credential:
+            store.remember_login(provider, host, repository_owner(info) or owner, credential.source)
+        return info, credential
+    logins = [credential for credential in tried if credential]
+    if len(logins) <= 1:
+        raise explain_rejection(last, logins[0] if logins else None, provider)
+    names = ", ".join(describe(credential, host) for credential in logins)
+    raise ProviderError(f"{LABELS[provider]} couldn't find {source.strip() or 'that repository'} with any of your logins "
+                        f"({names}). Check the name, or click Use a different token and paste one from an account "
+                        f"that can read it.", last.status)
 
 
 class MonitorServer(ThreadingHTTPServer):
@@ -30,24 +80,36 @@ class MonitorServer(ThreadingHTTPServer):
 
 
 class MonitorApp:
-    def __init__(self, store, checkout, env=os.environ, gh_token=gh_cli_token):
+    def __init__(self, store, checkout, env=os.environ, gh_token=gh_cli_token, gh_accounts=None):
         self.store = store
         self.checkout = Path(checkout).expanduser().resolve() if checkout else None
         self.env = env
         self._gh_token = gh_token
+        if gh_accounts is None:
+            gh_accounts = gh_cli_accounts if gh_token is gh_cli_token else (lambda: [(None, t)] if (t := gh_token()) else [])
+        self._gh_accounts = gh_accounts
         self._gh_cache = None
         self.refresh_lock = threading.Lock()
         self.picker_lock = threading.Lock()
         self.state_lock = threading.Lock()
 
-    def gh_token(self):
-        # gh is slow to spawn; ask once per process.
+    def gh_accounts(self):
+        # gh is slow to spawn; ask once per process (and again after a token changes).
         if self._gh_cache is None:
-            self._gh_cache = (self._gh_token() or "",)
-        return self._gh_cache[0] or None
+            self._gh_cache = list(self._gh_accounts())
+        return list(self._gh_cache)
 
     def credential(self, provider, host):
-        return resolve_credential(provider, host, self.store, self.env, self.gh_token)
+        found = credential_candidates(provider, host, None, self.store, self.env, self.gh_accounts)
+        return found[0] if found else None
+
+    def open_repository(self, provider, module, host, source):
+        try:
+            return open_repository(self.store, self.env, self.gh_accounts, provider, module, host, source)
+        except ProviderError as error:
+            if error.status == 401:
+                self._gh_cache = None
+            raise
 
     def profile_directory(self, metadata=None):
         profile = (metadata or self.store.read_state()).get("profile")
@@ -76,6 +138,7 @@ class MonitorApp:
                 "current_branch": metadata.get("current_branch"), "checkout_status": metadata.get("checkout_status"),
                 "default_checkout": str(self.checkout) if self.checkout else None,
                 "local_hint": metadata.get("local_hint"), "tokens": self.token_flags(),
+                "owner": metadata.get("owner"), "login": metadata.get("login"),
                 "folder_picker": picker.available(),
                 "update": None if self.env.get(updates.OPT_OUT) else updates.notice(self.store.root)}
 
@@ -98,12 +161,9 @@ class MonitorApp:
 
     def inspect(self, payload):
         provider, module, host, source = self._target(payload)
-        credential = self.credential(provider, host)
-        try:
-            result = module.inspect(source, host, credential)
-        except ProviderError as error:
-            raise self.rejected(error, credential, provider) from None
-        return {**result, "provider": provider, "host": host}
+        result, credential = self.open_repository(provider, module, host, source)
+        return {**result, "provider": provider, "host": host, "owner": repository_owner(result),
+                "credential": None if provider == "local" else describe(credential, host)}
 
     def pick_folder(self, payload):
         if not self.picker_lock.acquire(blocking=False):
@@ -114,7 +174,7 @@ class MonitorApp:
             self.picker_lock.release()
 
     def rejected(self, error, credential, provider):
-        if error.status == 401 and credential and credential.source == "gh":
+        if error.status == 401 and credential and credential.source.startswith("gh"):
             self._gh_cache = None
         return explain_rejection(error, credential, provider)
 
@@ -124,16 +184,15 @@ class MonitorApp:
         try:
             display_timezone = sync.validate_timezone(payload.get("timezone", "UTC"))
             provider, module, host, source = self._target(payload)
-            credential = self.credential(provider, host)
+            info, credential = self.open_repository(provider, module, host, source)
             try:
-                return self._sync(display_timezone, provider, module, host, source, credential, payload)
+                return self._sync(display_timezone, provider, module, host, source, credential, payload, info)
             except ProviderError as error:
                 raise self.rejected(error, credential, provider) from None
         finally:
             self.refresh_lock.release()
 
-    def _sync(self, display_timezone, provider, module, host, source, credential, payload):
-        info = module.inspect(source, host, credential)
+    def _sync(self, display_timezone, provider, module, host, source, credential, payload, info):
         requested = payload.get("branch") or ""
         if not isinstance(requested, str):
             raise ProviderError("Enter a valid target branch.")
@@ -153,7 +212,9 @@ class MonitorApp:
                                     "checkout_path": info.get("checkout_path"),
                                     "current_branch": info.get("current_branch"),
                                     "checkout_status": info.get("checkout_status"),
-                                    "local_hint": info.get("hint"), "profile": profile, "checked_at": checked_at})
+                                    "local_hint": info.get("hint"), "profile": profile, "checked_at": checked_at,
+                                    "owner": repository_owner(info),
+                                    "login": None if provider == "local" else describe(credential, host)})
         return {"ok": True, "repository": snapshot["repository"], "branch": snapshot["branch"],
                 "checked_at": checked_at, "count": len(snapshot["records"])}
 
@@ -164,16 +225,20 @@ class MonitorApp:
         host = normalize_host(provider, payload.get("host"))
         if provider == "bitbucket" and host != DEFAULT_HOSTS["bitbucket"]:
             raise ProviderError("Only Bitbucket Cloud (bitbucket.org) is supported.")
+        owner = payload.get("owner")
+        if owner is not None and (not isinstance(owner, str) or not OWNER.fullmatch(owner)):
+            raise ProviderError("That owner name doesn't look right. Load the repository first, then save the token.")
         token = payload.get("token")
         if token is None:
-            self.store.forget_credential(provider, host)
+            self.store.forget_credential(provider, host, owner)
         else:
             if not isinstance(token, str) or not token.strip() or len(token) > 4096 or any(c.isspace() for c in token.strip()):
                 raise ProviderError("Paste the token exactly as shown when you created it.")
             email = payload.get("email")
             if provider == "bitbucket" and (not isinstance(email, str) or "@" not in email or len(email) > 320):
                 raise ProviderError("Bitbucket tokens need your Atlassian account email.")
-            self.store.save_credential(provider, host, token.strip(), email.strip() if provider == "bitbucket" else None)
+            self.store.save_credential(provider, host, token.strip(), email.strip() if provider == "bitbucket" else None,
+                                       owner)
         self._gh_cache = None
         return {"ok": True, "tokens": self.token_flags()}
 
