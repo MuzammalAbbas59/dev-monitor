@@ -6,6 +6,10 @@ See how many pull requests merge into a branch each day, who authors them, and w
 
 Everything runs on your own computer: a small local web page, no account, no database, and no server to host.
 
+![Dev Monitor dashboard showing merged PRs per day, top authors and top mergers](https://raw.githubusercontent.com/MuzammalAbbas59/dev-monitor/master/docs/screenshot.png)
+
+<sub>Demo data: a fictional repository.</sub>
+
 ## Install
 
 Dev Monitor is installed with [pipx](https://pipx.pypa.io/), which puts the `dev-monitor` command on your PATH without touching your other Python packages.
@@ -155,6 +159,6 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m dev_monitor --data-dir /tmp/dm --port 8799
 ```
 
-To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.5`. GitHub Actions publishes it to PyPI.
+To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.6`. GitHub Actions publishes it to PyPI.
 
 MIT licensed.
