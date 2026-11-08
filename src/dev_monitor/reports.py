@@ -50,7 +50,7 @@ def csv_report(snapshot):
                          spreadsheet_safe(record["author"] or UNKNOWN), spreadsheet_safe(record["merged_by"] or UNKNOWN),
                          record["merged_at"],
                          merge_time(record, zone).isoformat(), snapshot["timezone"], record["provider"]])
-    return output.getvalue()
+    return "\ufeff" + output.getvalue()  # the BOM makes Excel read the file as UTF-8
 
 
 def markdown(value):
@@ -107,6 +107,7 @@ def write_exports(snapshot, directory):
         target = directory / name
         if target.exists() and target.read_bytes() == content.encode("utf-8"):
             continue
-        atomic_write(target, content)
+        # Exports are meant to be shared, unlike state and credentials, so don't keep mkstemp's 0600.
+        atomic_write(target, content, mode=0o644)
         changed.append(name)
     return changed

@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -83,6 +84,19 @@ def sync_to_directory(provider, host, repository, branch, display_timezone, cred
             staged, target = Path(staging) / name, directory / name
             if target.exists() and target.read_bytes() == staged.read_bytes():
                 continue
-            os.replace(staged, target)
+            _replace(staged, target)
             changed.append(name)
     return snapshot, changed
+
+
+def _replace(staged, target, attempts=5):
+    """Windows refuses to replace a file another program holds open; retry briefly, then say which file."""
+    for attempt in range(attempts):
+        try:
+            os.replace(staged, target)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise ProviderError(f"{target.name} is open in another program, such as Excel. "
+                                    f"Close it, then refresh again.", 423) from None
+            time.sleep(0.2)

@@ -1,5 +1,7 @@
+import http.client
 import json
 import re
+import ssl
 import subprocess
 import urllib.error
 import urllib.request
@@ -68,12 +70,20 @@ def http_json(url, *, headers=None, provider, timeout=30, data=None):
         if error.code == 403:
             raise ProviderError(f"{label} denied access. Check that the token can read this repository.", 403) from None
         raise ProviderError(f"{label} returned an error ({error.code}). Try again.", 502) from None
-    except urllib.error.URLError:
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, ssl.SSLCertVerificationError):
+            raise ProviderError(f"{urlsplit(url).netloc} sent a certificate this computer doesn't trust. A company proxy "
+                                f"or a self-signed server certificate usually causes this.", 502) from None
+        if isinstance(error.reason, TimeoutError):
+            raise ProviderError(f"{label} took too long to respond. Try again.", 504) from None
         raise ProviderError(f"Could not reach {urlsplit(url).netloc}. Check the server address and your connection.", 502) from None
     except (ValueError, UnicodeError):
         raise ProviderError(f"{label} returned an unexpected response. Try again.", 502) from None
     except TimeoutError:
         raise ProviderError(f"{label} took too long to respond. Try again.", 504) from None
+    except (OSError, http.client.HTTPException):
+        raise ProviderError(f"The connection to {urlsplit(url).netloc} dropped before {label} finished responding. "
+                            f"Try again.", 502) from None
 
 
 def normalize_host(provider, host):
@@ -112,6 +122,14 @@ def _remote_parts(url):
     if match:
         return match.group(1).lower(), _strip(match.group(2))
     return None
+
+
+def unquote_source(source):
+    """Drop quotes around a pasted path or URL; Windows "Copy as path" adds them."""
+    stripped = (source or "").strip()
+    if len(stripped) >= 2 and stripped[0] == stripped[-1] and stripped[0] in "\"'":
+        return stripped[1:-1].strip()
+    return source
 
 
 def parse_hosted_source(source, host, slug_pattern):

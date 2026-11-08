@@ -29,6 +29,14 @@ class CliTests(unittest.TestCase):
         self.assertEqual(len(json.loads((out / "records.json").read_text())["records"]), 1)
         self.assertIn("Checked Local folder: 1 merged PRs into main. Updated snapshot.", stdout.getvalue())
 
+    def test_sync_command_accepts_quoted_path(self):
+        repo = make_repo(self.root / "my repo")
+        commit(repo, "Tidy (#6)")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main(["sync", "--provider", "local", "--repo", f'"{repo}"', "--branch", "main",
+                             "--out", str(self.root / "out"), "--data-dir", str(self.root / "data")])
+        self.assertEqual(code, 0)
+
     def test_sync_command_error_exit_1(self):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):

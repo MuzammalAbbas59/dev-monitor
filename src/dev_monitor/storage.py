@@ -19,13 +19,15 @@ def default_data_dir(platform=sys.platform, env=os.environ, home=None):
     return (Path(base) if base else home / ".local" / "share") / "dev-monitor"
 
 
-def atomic_write(path, text):
+def atomic_write(path, text, mode=None):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
     try:
         with open(descriptor, "w", encoding="utf-8", newline="") as handle:
             handle.write(text)
+        if mode is not None:
+            os.chmod(temporary, mode)
         os.replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)

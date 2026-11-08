@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 
 from . import __version__, providers, reports, sync
 from .auth import explain_rejection, gh_cli_token, resolve_credential
-from .providers.base import LABELS, ProviderError, normalize_host
+from .providers.base import LABELS, ProviderError, normalize_host, unquote_source
 from .storage import DEFAULT_HOSTS
 
 EXPORTS = {"/records.json": "application/json", "/merges.csv": "text/csv", "/REPORT.md": "text/markdown"}
@@ -88,6 +88,7 @@ class MonitorApp:
         source = payload.get("source", "")
         if not isinstance(source, str) or len(source) > 4096:
             raise ProviderError("Enter a repository name, a repository URL, or a local checkout folder.")
+        source = unquote_source(source)
         if not source.strip() and self.checkout:
             source = str(self.checkout)
         return provider, module, host, source

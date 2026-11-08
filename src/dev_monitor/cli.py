@@ -5,7 +5,7 @@ from pathlib import Path
 
 from . import __version__, providers, server, sync
 from .auth import explain_rejection, resolve_credential
-from .providers.base import LABELS, ProviderError, normalize_host
+from .providers.base import LABELS, ProviderError, normalize_host, unquote_source
 from .storage import Store, default_data_dir
 
 
@@ -46,7 +46,7 @@ def run_sync(arguments):
         host = normalize_host(arguments.provider, arguments.host)
         display_timezone = sync.validate_timezone(arguments.timezone)
         credential = resolve_credential(arguments.provider, host, store)
-        info = module.inspect(arguments.repo, host, credential)
+        info = module.inspect(unquote_source(arguments.repo), host, credential)
         branch = sync.validate_branch(arguments.branch or info.get("current_branch") or info.get("default_branch") or "", arguments.provider)
         if not module.branch_exists(info["repository"], branch, host, credential):
             raise ProviderError(f"Target branch {branch!r} is unavailable in {info['repository']}.", 404)

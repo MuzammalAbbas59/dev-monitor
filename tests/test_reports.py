@@ -12,7 +12,9 @@ from tests.helpers import record, snapshot
 class ReportTests(unittest.TestCase):
     def test_csv_columns(self):
         data = snapshot([record(), record(number=2)], timezone="Asia/Karachi")
-        rows = list(csv.reader(io.StringIO(reports.csv_report(data))))
+        text = reports.csv_report(data)
+        self.assertTrue(text.startswith("\ufeff"))
+        rows = list(csv.reader(io.StringIO(text.removeprefix("\ufeff"))))
         self.assertEqual(rows[0], ["PR number", "Title", "Description", "URL", "Author", "Merged by",
                                    "Merged at (UTC)", "Merged at (display timezone)", "Display timezone", "Provider"])
         self.assertEqual(len(rows), 3)
