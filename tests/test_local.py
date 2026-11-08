@@ -75,6 +75,15 @@ class LocalRepoTests(unittest.TestCase):
         self.assertFalse(local.branch_exists(str(repo), "nope", "", None))
         self.assertFalse(local.branch_exists(str(repo), "-x", "", None))
 
+    def test_default_is_origin_head_not_the_checked_out_feature_branch(self):
+        repo = make_repo(self.root / "f")
+        commit(repo, "init")
+        git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+        git(repo, "checkout", "-q", "-b", "fix/feature")
+        result = local.inspect(str(repo), "", None)
+        self.assertEqual((result["default_branch"], result["current_branch"]), ("origin/main", "fix/feature"))
+
     def test_inspect_git_calls_do_not_scale_with_branches(self):
         from unittest import mock
         from dev_monitor.providers import base

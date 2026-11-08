@@ -54,12 +54,12 @@ def inspect(source, host, credential):
     names = [name for name in names if not name.endswith("/HEAD") and name != "origin"]
     heads = _local_heads(root)
     branches = ([name for name in names if name in heads] + [name for name in names if name not in heads])[:100]
-    default = context["current_branch"]
-    if not default:
-        try:
-            default = base.git(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").strip() or None
-        except base.ProviderError:
-            default = None
+    # Merges land on the main line (origin/HEAD), not on whatever feature branch is checked out.
+    try:
+        default = base.git(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").strip() or None
+    except base.ProviderError:
+        default = None
+    default = default or context["current_branch"]
     remote = base.origin_remote(root)
     return {"repository": root, "default_branch": default, "branches": branches, "display_source": root,
             "hint": HOST_HINTS.get(remote[0]) if remote else None, **context}

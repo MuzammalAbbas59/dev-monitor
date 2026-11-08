@@ -137,7 +137,7 @@ class MonitorApp:
         requested = payload.get("branch") or ""
         if not isinstance(requested, str):
             raise ProviderError("Enter a valid target branch.")
-        branch = requested.strip() or info.get("current_branch") or info.get("default_branch")
+        branch = requested.strip() or info.get("default_branch") or info.get("current_branch")
         if not branch:
             raise ProviderError("This repository has no default branch. Enter a target branch.")
         branch = sync.validate_branch(branch, provider)

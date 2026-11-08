@@ -153,6 +153,6 @@ PYTHONPATH=src python -m unittest discover -s tests -v
 PYTHONPATH=src python -m dev_monitor --data-dir /tmp/dm --port 8799
 ```
 
-To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.3`. GitHub Actions publishes it to PyPI.
+To release, bump `__version__` in `src/dev_monitor/__init__.py`, commit, then push a tag such as `v0.1.4`. GitHub Actions publishes it to PyPI.
 
 MIT licensed.

@@ -170,7 +170,7 @@
       <p class="hint" id="selected-repository"></p>
       <p class="hint" id="checkout-label"></p>
       <p class="hint" id="local-note" hidden>Read from git history: merge and squash commits. “Merged by” is approximate.</p>
-      <p class="hint" id="local-hint" hidden></p>
+      <p class="hint" id="local-hint" hidden><span id="local-hint-text"></span> <button type="button" class="inline-link" id="use-hosted"></button></p>
       <p class="hint" id="sync-status" role="status" aria-live="polite">Run dev-monitor for live refresh. This file is an offline view.</p>
       <p class="error" id="sync-error" role="alert" hidden></p>
     </section>
@@ -184,7 +184,7 @@
         <div><label for="merger">Merged by</label><select id="merger"><option value="">All mergers</option></select></div>
         <div class="search-field"><label for="search">Search PRs</label><input id="search" type="search" placeholder="Number, title, or description"></div>
       </div>
-      <div class="filter-foot"><div class="presets" aria-label="Date range presets"><button type="button" data-preset="24h" aria-pressed="false">Last 24 hours</button><button type="button" data-preset="3" aria-pressed="false">Last 3 days</button><button type="button" data-preset="7" aria-pressed="false">Last 7 days</button><button type="button" data-preset="30" aria-pressed="true">Last 30 days</button><button type="button" data-preset="all" aria-pressed="false">All time</button></div><p class="hint" id="timezone-hint">Dates include the entire day in UTC.</p></div>
+      <div class="filter-foot"><div class="presets" aria-label="Date range presets"><button type="button" data-preset="24h" aria-pressed="false">Last 24 hours</button><button type="button" data-preset="3" aria-pressed="false">Last 3 days</button><button type="button" data-preset="7" aria-pressed="false">Last 7 days</button><button type="button" data-preset="30" aria-pressed="false">Last 30 days</button><button type="button" data-preset="all" aria-pressed="true">All time</button></div><p class="hint" id="timezone-hint">Dates include the entire day in UTC.</p></div>
       <p class="hint" id="timezone-help">Search by city and choose a timezone. Daylight saving is applied for each merge date.</p>
       <p class="error" id="timezone-error" role="alert" hidden></p>
       <p class="error" id="filter-error" role="alert" hidden></p>
@@ -329,7 +329,10 @@
         const known = groups.filter(([name]) => name !== unknownValue);
         const unknown = groups.find(([name]) => name === unknownValue);
         byId(countId).textContent = known.length === 0 && unknown ? "Unknown" : known.length.toLocaleString();
-        byId(noteId).textContent = unknown ? `${known.length} recorded · ${unknown[1]} PR${unknown[1] === 1 ? "" : "s"} with unavailable identity` : `Distinct recorded ${field === "author" ? "authors" : "mergers"}`;
+        const localMerges = field === "merged_by" && snapshot.provider === "local";
+        byId(noteId).textContent = !unknown ? `Distinct recorded ${field === "author" ? "authors" : "mergers"}`
+          : localMerges ? `${unknown[1]} merged on the website · not in local git history`
+          : `${known.length} recorded · ${unknown[1]} PR${unknown[1] === 1 ? "" : "s"} with unavailable identity`;
         if (!groups.length) target.append(create("p", "empty-mini", "No matching merges."));
         groups.forEach(([name, count]) => {
           const row = create("div", "person-row");
@@ -486,7 +489,7 @@
         refreshButton.textContent = "Refresh";
       };
       const busy = (running, refreshing = false) => {
-        [providerSelect, sourceInput, serverInput, branchInput, refreshButton, byId("inspect-repository"), tokenInput, emailInput, byId("save-token"), byId("forget-token"), byId("browse-folder")].forEach((control) => { control.disabled = running || !localApp; });
+        [providerSelect, sourceInput, serverInput, branchInput, refreshButton, byId("inspect-repository"), tokenInput, emailInput, byId("save-token"), byId("forget-token"), byId("browse-folder"), byId("use-hosted")].forEach((control) => { control.disabled = running || !localApp; });
         byId("current-branch").disabled = running || !localApp || !currentBranch;
         updateProviderUI();
         refreshButton.textContent = refreshing ? "Refreshing…" : "Refresh";
@@ -494,7 +497,9 @@
       };
       const showHint = (hint) => {
         byId("local-hint").hidden = !(hint && providerSelect.value === "local");
-        byId("local-hint").textContent = hint ? `This folder is on ${hint}. Switch the source to ${hint} for exact PR data.` : "";
+        byId("local-hint-text").textContent = hint ? `This folder is on ${hint}. PRs merged with ${hint}'s Merge button record ${hint} as the committer, so local history can't show who merged them.` : "";
+        byId("use-hosted").textContent = hint ? `Use ${hint} instead for exact names` : "";
+        byId("use-hosted").dataset.provider = Object.keys(PROVIDERS).find((key) => PROVIDERS[key].name === hint) || "";
       };
       const showContext = (info) => {
         currentBranch = info.current_branch;
@@ -568,13 +573,23 @@
         busy(true);
         byId("sync-error").hidden = true;
         byId("sync-status").textContent = "Loading repository and branch details…";
+        let loaded = false;
         try {
           const info = await api("/api/repository", target());
           sourceInput.value = info.display_source || info.repository;
-          branchInput.value = info.current_branch || info.default_branch || "";
+          branchInput.value = info.default_branch || info.current_branch || "";
           showContext(info);
-          byId("sync-status").textContent = "Repository loaded. Click Refresh to collect merged PRs for the selected branch.";
+          loaded = Boolean(branchInput.value);
+          byId("sync-status").textContent = loaded ? "Repository loaded." : "Repository loaded. Enter the branch to monitor, then click Refresh.";
         } catch (error) { showSyncError(error); } finally { busy(false); }
+        if (loaded) refreshButton.click();
+      });
+      byId("use-hosted").addEventListener("click", () => {
+        const name = byId("use-hosted").dataset.provider;
+        if (!PROVIDERS[name]) return;
+        providerSelect.value = name;
+        providerSelect.dispatchEvent(new Event("change"));
+        byId("inspect-repository").click();
       });
       refreshButton.addEventListener("click", async () => {
         if (!selectTimezone(controls.zone.value)) return;
@@ -637,7 +652,7 @@
         } catch {}
       };
       updateProviderUI();
-      setPreset(preferences.preset ?? "30");
+      setPreset(preferences.preset ?? "all");
       if (preferences.preset === "") { controls.from.value = preferences.from; controls.to.value = preferences.to; }
       render();
       connectLocalApp();

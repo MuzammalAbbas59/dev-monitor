@@ -6,10 +6,21 @@ TEMPLATE = resources.files("dev_monitor").joinpath("dashboard.html").read_text(e
 IDS = ["provider", "repository-source", "server-host", "server-field", "token-row", "token-input", "token-email",
        "save-token", "forget-token", "token-link", "target-branch", "branch-options", "current-branch", "refresh",
        "local-note", "local-hint", "log-search", "search", "result-count", "browse-folder",
-       "update-banner", "update-command", "copy-update", "dismiss-update"]
+       "update-banner", "update-command", "copy-update", "dismiss-update",
+       "use-hosted"]
 
 
 class DashboardTemplateTests(unittest.TestCase):
+    def test_all_time_is_the_default_range(self):
+        self.assertIn('data-preset="all" aria-pressed="true"', TEMPLATE)
+        self.assertEqual(TEMPLATE.count('aria-pressed="true">'), 1)
+        self.assertIn('setPreset(preferences.preset ?? "all")', TEMPLATE)
+
+    def test_loading_a_repository_refreshes_it(self):
+        handler = TEMPLATE[TEMPLATE.index('byId("inspect-repository").addEventListener'):]
+        handler = handler[:handler.index("refreshButton.addEventListener")]
+        self.assertIn("refreshButton.click()", handler)
+
     def test_placeholder_once(self):
         self.assertEqual(TEMPLATE.count("__MONITOR_DATA__"), 1)
 

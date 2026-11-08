@@ -56,7 +56,7 @@ def run_sync(arguments):
         display_timezone = sync.validate_timezone(arguments.timezone)
         credential = resolve_credential(arguments.provider, host, store)
         info = module.inspect(unquote_source(arguments.repo), host, credential)
-        branch = sync.validate_branch(arguments.branch or info.get("current_branch") or info.get("default_branch") or "", arguments.provider)
+        branch = sync.validate_branch(arguments.branch or info.get("default_branch") or info.get("current_branch") or "", arguments.provider)
         if not module.branch_exists(info["repository"], branch, host, credential):
             raise ProviderError(f"Target branch {branch!r} is unavailable in {info['repository']}.", 404)
         snapshot, changed = sync.sync_to_directory(arguments.provider, host, info["repository"], branch,
@@ -79,7 +79,7 @@ def main(argv=None):
         parser.add_argument("--provider", required=True, choices=providers.NAMES)
         parser.add_argument("--repo", required=True, help="OWNER/REPO, repository URL, or local checkout path")
         parser.add_argument("--host", help="Self-hosted server address (GitHub Enterprise or GitLab)")
-        parser.add_argument("--branch", help="Branch PRs were merged into (default: current or default branch)")
+        parser.add_argument("--branch", help="Branch PRs were merged into (default: the repository's default branch)")
         parser.add_argument("--timezone", default="UTC", help="IANA timezone for report dates")
         parser.add_argument("--out", type=Path, default=Path("."), help="Output folder (default: current folder)")
         parser.add_argument("--open", action="store_true", help="Open the generated dashboard")
