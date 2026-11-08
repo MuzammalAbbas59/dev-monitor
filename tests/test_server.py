@@ -74,6 +74,32 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request("POST", "/api/repository", payload, headers={"Content-Type": "text/plain"})[0], 415)
         self.assertEqual(self.request("POST", "/api/repository", raw=b"{" + b" " * 16400 + b"}")[0], 413)
 
+    def test_pick_folder_returns_chosen_path(self):
+        with mock.patch("dev_monitor.picker.pick_folder", return_value="/Users/me/repo") as pick:
+            status, _, body = self.request("POST", "/api/pick-folder", {})
+        self.assertEqual((status, json.loads(body)), (200, {"path": "/Users/me/repo"}))
+        pick.assert_called_once()
+
+    def test_pick_folder_needs_local_page_headers(self):
+        with mock.patch("dev_monitor.picker.pick_folder") as pick:
+            status = self.request("POST", "/api/pick-folder", {}, headers={"Origin": "http://evil.example.com"})[0]
+        self.assertEqual(status, 403)
+        pick.assert_not_called()
+
+    def test_state_carries_update_notice(self):
+        notice = {"latest": "9.0.0", "current": "0.1.2", "command": "pipx upgrade dev-monitor"}
+        with mock.patch("dev_monitor.updates.notice", return_value=notice):
+            self.assertEqual(json.loads(self.request("GET", "/api/state")[2])["update"], notice)
+
+    def test_no_update_notice_when_opted_out(self):
+        self.app.env = {"DEV_MONITOR_NO_UPDATE_CHECK": "1"}
+        with mock.patch("dev_monitor.updates.notice", return_value={"latest": "9.0.0"}):
+            self.assertIsNone(json.loads(self.request("GET", "/api/state")[2])["update"])
+
+    def test_state_says_whether_folder_picker_exists(self):
+        with mock.patch("dev_monitor.picker.available", return_value=False):
+            self.assertFalse(json.loads(self.request("GET", "/api/state")[2])["folder_picker"])
+
     def test_state_never_contains_token(self):
         status, _, _ = self.request("POST", "/api/credentials", {"provider": "gitlab", "host": "git.example.com",
                                                                  "token": "sekret-123"})

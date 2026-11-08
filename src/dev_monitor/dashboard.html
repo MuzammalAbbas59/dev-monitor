@@ -40,6 +40,14 @@
     .connection-fields > div { flex: 1 1 180px; min-width: 0; }
     .connection-fields .provider-field { flex: 0 1 170px; }
     .connection-fields .source-field { flex: 2 1 300px; }
+    .update-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 16px; padding: 12px 16px; background: var(--red-soft); border: 1px solid #f3c6c8; border-radius: 10px; font-size: 13px; }
+    .update-banner[hidden] { display: none; }
+    .update-banner span { flex: 1 1 320px; }
+    .update-banner code { padding: 2px 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; }
+    .update-banner button { font-size: 12px; }
+    .input-with-button { display: flex; gap: 8px; }
+    .input-with-button input { flex: 1; min-width: 0; }
+    .input-with-button button { flex: none; }
     .token-row { margin: 4px 0 12px; padding: 14px 16px; background: #f7f8fa; border: 1px solid var(--line); border-radius: 10px; }
     .token-inputs { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
     .token-inputs > div { flex: 1 1 220px; min-width: 0; }
@@ -140,11 +148,12 @@
     </div>
   </header>
   <main class="shell">
+    <div class="update-banner" id="update-banner" role="status" hidden><span>Dev Monitor <strong id="update-latest"></strong> is available (you have <span id="update-current"></span>). To update, run <code id="update-command"></code> in a terminal, then restart dev-monitor.</span><button type="button" id="copy-update">Copy command</button><button type="button" class="inline-link" id="dismiss-update">Dismiss</button></div>
     <section class="panel connection" aria-labelledby="connection-heading">
       <div class="connection-heading"><h2 id="connection-heading">Connect a repository</h2><button type="button" id="refresh" class="primary" disabled>Refresh</button></div>
       <div class="connection-fields">
         <div class="provider-field"><label for="provider">Source</label><select id="provider" disabled><option value="github">GitHub</option><option value="gitlab">GitLab</option><option value="bitbucket">Bitbucket</option><option value="local">Local folder</option></select></div>
-        <div class="source-field"><label for="repository-source" id="source-label">GitHub repository</label><input id="repository-source" placeholder="OWNER/REPO, URL, or local checkout" autocomplete="off" spellcheck="false" disabled></div>
+        <div class="source-field"><label for="repository-source" id="source-label">GitHub repository</label><div class="input-with-button"><input id="repository-source" placeholder="OWNER/REPO, URL, or local checkout" autocomplete="off" spellcheck="false" disabled><button type="button" id="browse-folder" hidden disabled>Browse…</button></div></div>
         <div id="server-field"><label for="server-host">Server</label><input id="server-host" placeholder="github.com" autocomplete="off" spellcheck="false" disabled></div>
         <div><label for="target-branch">Monitor merges into</label><input id="target-branch" list="branch-options" placeholder="Detect branch from repository" autocomplete="off" spellcheck="false" disabled><datalist id="branch-options"></datalist></div>
       </div>
@@ -423,6 +432,7 @@
       byId("previous").addEventListener("click", () => { page -= 1; renderRows(); });
       byId("next").addEventListener("click", () => { page += 1; renderRows(); });
       let localApp = false;
+      let folderPicker = false;
       let currentBranch = null;
       let tokens = {};
       let defaultCheckout = null;
@@ -471,11 +481,12 @@
         const link = safeLink(tokenLink(name, host || config.host));
         if (link) byId("token-link").href = link;
         byId("local-note").hidden = !isLocal;
+        byId("browse-folder").hidden = !(isLocal && localApp && folderPicker);
         byId("current-branch").hidden = !(isLocal || looksLikePath(sourceInput.value));
         refreshButton.textContent = "Refresh";
       };
       const busy = (running, refreshing = false) => {
-        [providerSelect, sourceInput, serverInput, branchInput, refreshButton, byId("inspect-repository"), tokenInput, emailInput, byId("save-token"), byId("forget-token")].forEach((control) => { control.disabled = running || !localApp; });
+        [providerSelect, sourceInput, serverInput, branchInput, refreshButton, byId("inspect-repository"), tokenInput, emailInput, byId("save-token"), byId("forget-token"), byId("browse-folder")].forEach((control) => { control.disabled = running || !localApp; });
         byId("current-branch").disabled = running || !localApp || !currentBranch;
         updateProviderUI();
         refreshButton.textContent = refreshing ? "Refreshing…" : "Refresh";
@@ -521,6 +532,20 @@
         resetContext();
       });
       byId("current-branch").addEventListener("click", () => { branchInput.value = currentBranch; });
+      byId("browse-folder").addEventListener("click", async () => {
+        busy(true);
+        byId("sync-error").hidden = true;
+        byId("sync-status").textContent = "Choose a folder in the window that just opened. It may be behind your browser.";
+        let chosen = null;
+        try {
+          chosen = (await api("/api/pick-folder", {})).path;
+          if (!chosen) byId("sync-status").textContent = "No folder chosen.";
+        } catch (error) { showSyncError(error); } finally { busy(false); }
+        if (!chosen) return;
+        sourceInput.value = chosen;
+        resetContext();
+        byId("inspect-repository").click();
+      });
       byId("save-token").addEventListener("click", async () => {
         busy(true);
         byId("sync-error").hidden = true;
@@ -561,6 +586,27 @@
           location.reload();
         } catch (error) { showSyncError(error); } finally { busy(false); }
       });
+      const showUpdate = (update) => {
+        let dismissed = null;
+        try { dismissed = localStorage.getItem("dev-monitor:dismissed-update"); } catch {}
+        const banner = byId("update-banner");
+        banner.hidden = !update || dismissed === update.latest;
+        if (banner.hidden) return;
+        byId("update-latest").textContent = update.latest;
+        byId("update-current").textContent = update.current;
+        byId("update-command").textContent = update.command;
+        banner.dataset.latest = update.latest;
+      };
+      byId("copy-update").addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(byId("update-command").textContent);
+          byId("copy-update").textContent = "Copied";
+        } catch { getSelection().selectAllChildren(byId("update-command")); }
+      });
+      byId("dismiss-update").addEventListener("click", () => {
+        try { localStorage.setItem("dev-monitor:dismissed-update", byId("update-banner").dataset.latest); } catch {}
+        byId("update-banner").hidden = true;
+      });
       const connectLocalApp = async () => {
         if (location.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(location.hostname)) { updateProviderUI(); return; }
         try {
@@ -570,6 +616,15 @@
           if (!info.local_app) return;
           localApp = true;
           tokens = info.tokens || {};
+          folderPicker = Boolean(info.folder_picker);
+          showUpdate(info.update);
+          // The daily version check runs in the background at startup; pick up its answer shortly after.
+          setTimeout(async () => {
+            try {
+              const later = await fetch("/api/state", { cache: "no-store" });
+              if (later.ok) showUpdate((await later.json()).update);
+            } catch {}
+          }, 8000);
           if (PROVIDERS[info.provider]) providerSelect.value = info.provider;
           if (info.host && PROVIDERS[info.provider] && info.host !== PROVIDERS[info.provider].host) serverInput.value = info.host;
           sourceInput.value = info.source || "";

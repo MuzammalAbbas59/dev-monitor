@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import __version__, providers, reports, sync
+from . import __version__, picker, providers, reports, sync, updates
 from .auth import explain_rejection, gh_cli_token, resolve_credential
 from .providers.base import LABELS, ProviderError, normalize_host, unquote_source
 from .storage import DEFAULT_HOSTS
@@ -37,6 +37,7 @@ class MonitorApp:
         self._gh_token = gh_token
         self._gh_cache = None
         self.refresh_lock = threading.Lock()
+        self.picker_lock = threading.Lock()
         self.state_lock = threading.Lock()
 
     def gh_token(self):
@@ -74,7 +75,9 @@ class MonitorApp:
                 "default_branch": metadata.get("default_branch"), "checkout_path": metadata.get("checkout_path"),
                 "current_branch": metadata.get("current_branch"), "checkout_status": metadata.get("checkout_status"),
                 "default_checkout": str(self.checkout) if self.checkout else None,
-                "local_hint": metadata.get("local_hint"), "tokens": self.token_flags()}
+                "local_hint": metadata.get("local_hint"), "tokens": self.token_flags(),
+                "folder_picker": picker.available(),
+                "update": None if self.env.get(updates.OPT_OUT) else updates.notice(self.store.root)}
 
     def _target(self, payload):
         provider = payload.get("provider")
@@ -101,6 +104,14 @@ class MonitorApp:
         except ProviderError as error:
             raise self.rejected(error, credential, provider) from None
         return {**result, "provider": provider, "host": host}
+
+    def pick_folder(self, payload):
+        if not self.picker_lock.acquire(blocking=False):
+            raise ProviderError("A folder window is already open. Check behind your browser window.", 409)
+        try:
+            return {"path": picker.pick_folder()}
+        finally:
+            self.picker_lock.release()
 
     def rejected(self, error, credential, provider):
         if error.status == 401 and credential and credential.source == "gh":
@@ -243,7 +254,7 @@ class MonitorHandler(BaseHTTPRequestHandler):
             self.validate_host()
             payload = self.read_payload()
             routes = {"/api/repository": self.server.app.inspect, "/api/sync": self.server.app.sync,
-                      "/api/credentials": self.server.app.save_credentials}
+                      "/api/credentials": self.server.app.save_credentials, "/api/pick-folder": self.server.app.pick_folder}
             handler = routes.get(urlsplit(self.path).path)
             if not handler:
                 raise ProviderError("Not found.", 404)

@@ -1,9 +1,11 @@
 import argparse
+import os
 import sys
+import threading
 import webbrowser
 from pathlib import Path
 
-from . import __version__, providers, server, sync
+from . import __version__, providers, server, sync, updates
 from .auth import explain_rejection, resolve_credential
 from .providers.base import LABELS, ProviderError, normalize_host, unquote_source
 from .storage import Store, default_data_dir
@@ -15,6 +17,8 @@ def _common(parser):
 
 def serve(arguments):
     store = Store(arguments.data_dir or default_data_dir())
+    if arguments.no_update_check:
+        os.environ[updates.OPT_OUT] = "1"
     app = server.MonitorApp(store, arguments.checkout)
     try:
         bound, url = server.bind(app, arguments.port)
@@ -27,6 +31,11 @@ def serve(arguments):
             webbrowser.open(url)
         return 0
     print(f"Dev Monitor: {url}", flush=True)
+    message = updates.terminal_message(store.root, os.environ)
+    if message:
+        print(message, flush=True)
+    # Refresh the daily version check in the background; the dashboard reads the result.
+    threading.Thread(target=updates.check, args=(store.root, os.environ), daemon=True).start()
     if not arguments.no_open:
         webbrowser.open(url)
     try:
@@ -82,6 +91,8 @@ def main(argv=None):
     parser.add_argument("--port", type=int, default=8765, help="Local port (default 8765; tries the next 10 if busy)")
     parser.add_argument("--checkout", type=Path, help="Checkout used when the repository box is left empty")
     parser.add_argument("--no-open", action="store_true", help="Do not open the browser")
+    parser.add_argument("--no-update-check", action="store_true",
+                        help=f"Never ask PyPI for the latest version (or set {updates.OPT_OUT}=1)")
     _common(parser)
     arguments = parser.parse_args(argv)
     if not 1 <= arguments.port <= 65535:

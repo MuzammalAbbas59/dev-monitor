@@ -69,12 +69,14 @@ dev-monitor
 Your browser opens at `http://127.0.0.1:8765/`. If that port is busy, the next free one is used, and the URL is printed in the terminal. Then:
 
 1. Pick a **Source**: GitHub, GitLab, Bitbucket, or Local folder.
-2. Enter the repository: `OWNER/REPO`, a repository URL, or a local checkout folder.
+2. Enter the repository: `OWNER/REPO`, a repository URL, or a local checkout folder. For a local folder, click **Browse…** to pick it instead of typing the path (on Linux this needs `zenity` or `kdialog`).
 3. Click **Load repository**, check **Monitor merges into**, then click **Refresh**.
 
 The dashboard shows merged PRs per day, top authors, top mergers, and a searchable merge log. Filter by date range, timezone, author, merger, or text. Exports (`records.json`, `merges.csv`, `REPORT.md`, and a self-contained `index.html`) are available for the active repository.
 
-Options: `--port 9000`, `--no-open`, `--data-dir PATH`, `--checkout PATH` (the folder used when the repository box is left empty).
+Options: `--port 9000`, `--no-open`, `--data-dir PATH`, `--checkout PATH` (the folder used when the repository box is left empty), `--no-update-check`.
+
+When a newer release is out, a notice at the top of the dashboard (and in the terminal) shows the command to update, such as `pipx upgrade dev-monitor`. Dev Monitor never updates itself.
 
 ## Sources and tokens
 
@@ -129,6 +131,7 @@ Each repository and branch pair has its own snapshot under `profiles/`. Delete t
 - The page and API listen on `127.0.0.1` only and reject requests from other sites.
 - PR data goes from the git host to your computer and nowhere else.
 - Exports contain PR titles and descriptions, so treat them as being as sensitive as the repository itself.
+- Once a day, Dev Monitor asks pypi.org for the latest version number, to show the update notice. Nothing about you or your repositories is sent. Turn it off with `--no-update-check` or `DEV_MONITOR_NO_UPDATE_CHECK=1`.
 
 ## Limits
 

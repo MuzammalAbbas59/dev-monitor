@@ -5,7 +5,8 @@ from importlib import resources
 TEMPLATE = resources.files("dev_monitor").joinpath("dashboard.html").read_text(encoding="utf-8")
 IDS = ["provider", "repository-source", "server-host", "server-field", "token-row", "token-input", "token-email",
        "save-token", "forget-token", "token-link", "target-branch", "branch-options", "current-branch", "refresh",
-       "local-note", "local-hint", "log-search", "search", "result-count"]
+       "local-note", "local-hint", "log-search", "search", "result-count", "browse-folder",
+       "update-banner", "update-command", "copy-update", "dismiss-update"]
 
 
 class DashboardTemplateTests(unittest.TestCase):
