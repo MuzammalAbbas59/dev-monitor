@@ -60,7 +60,8 @@ def http_json(url, *, headers=None, provider, timeout=30, data=None):
                                 f"or whether a login proxy sits in front of the API.", 502) from None
         if error.code == 401:
             raise ProviderError(f"{label} rejected the token. Create a new one and save it again.", 401) from None
-        if error.code == 429 or (error.code == 403 and response_headers.get("x-ratelimit-remaining") == "0"):
+        if error.code == 429 or (error.code == 403 and (response_headers.get("x-ratelimit-remaining") == "0"
+                                                        or "retry-after" in response_headers)):
             raise ProviderError(f"{label} rate limit reached. Try again after {_reset_time(response_headers)}.", 429) from None
         if error.code == 404:
             raise ProviderError(f"{label} could not find that repository or branch, or the token can't read it.", 404) from None

@@ -64,9 +64,15 @@ class Store:
 
     def _write_credentials(self, credentials):
         self.root.mkdir(parents=True, exist_ok=True)
-        descriptor = os.open(self.credentials_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with open(descriptor, "w", encoding="utf-8") as handle:
-            json.dump(credentials, handle, indent=2)
+        # mkstemp creates the file 0600, so the token is never readable by others, even briefly.
+        descriptor, temporary = tempfile.mkstemp(prefix="credentials.", suffix=".tmp", dir=self.root)
+        try:
+            with open(descriptor, "w", encoding="utf-8") as handle:
+                json.dump(credentials, handle, indent=2)
+            os.replace(temporary, self.credentials_file)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
         os.chmod(self.credentials_file, 0o600)
 
     def saved_credential(self, provider, host):

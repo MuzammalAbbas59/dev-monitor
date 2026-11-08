@@ -54,7 +54,8 @@ def csv_report(snapshot):
 
 
 def markdown(value):
-    return str(value).replace("\\", "\\\\").replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+    return (str(value).replace("\\", "\\\\").replace("|", "\\|").replace("<", "&lt;")
+            .replace("\r", " ").replace("\n", " "))
 
 
 def reference(record):

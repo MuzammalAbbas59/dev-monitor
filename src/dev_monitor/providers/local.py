@@ -23,6 +23,7 @@ def _first_line(body, skip=None):
 
 def classify(subject, body, parents):
     """Return (number, title) for a merged change, or None for a direct push."""
+    subject = subject.strip()
     for pattern in (GITHUB_MERGE, BITBUCKET_MERGE):
         match = pattern.match(subject)
         if match:

@@ -77,7 +77,8 @@ def _merged_at(pr, repository, credential, previous):
 
 def collect(repository, branch, host, credential, previous):
     _check_host(host)
-    query = urlencode({"state": "MERGED", "pagelen": 50, "q": f'destination.branch.name="{branch}"', "fields": FIELDS})
+    quoted = branch.replace("\\", "\\\\").replace('"', '\\"')
+    query = urlencode({"state": "MERGED", "pagelen": 50, "q": f'destination.branch.name="{quoted}"', "fields": FIELDS})
     url, records = f"{API}/repositories/{repository}/pullrequests?{query}", []
     while url:
         page = _get(url, credential)
